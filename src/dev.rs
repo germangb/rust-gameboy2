@@ -27,7 +27,7 @@ pub trait Device {
 
 #[cfg(test)]
 mod test {
-    use crate::dev::Device;
+    use super::Device;
 
     type TestDevice = Box<[u8; 0x10000]>;
 

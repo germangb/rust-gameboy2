@@ -1,4 +1,4 @@
-use crate::dev::Device;
+use crate::dev::{invalid_read, invalid_write, Device};
 use log::{info, warn};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -7,23 +7,25 @@ use std::mem;
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[rustfmt::skip]
 enum Select {
-    Button = 0b0010_0000,
+    Button    = 0b0010_0000,
     Direction = 0b0001_0000,
     Undefined = 0b0000_0000,
 }
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[rustfmt::skip]
 pub enum Button {
-    A = 0b0000_0001,
-    B = 0b0000_0010,
+    A      = 0b0000_0001,
+    B      = 0b0000_0010,
     Select = 0b0000_0100,
-    Start = 0b0000_1000,
-    Right = 0b0001_0000,
-    Left = 0b0010_0000,
-    Up = 0b0100_0000,
-    Down = 0b1000_0000,
+    Start  = 0b0000_1000,
+    Right  = 0b0001_0000,
+    Left   = 0b0010_0000,
+    Up     = 0b0100_0000,
+    Down   = 0b1000_0000,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -34,20 +36,26 @@ pub struct Joypad {
 }
 
 impl Joypad {
-    fn press(&mut self, button: Button) {
+    pub fn press(&mut self, button: Button) {
         info!("Button press: {:?}", button);
         self.matrix |= unsafe { mem::transmute::<_, u8>(button) };
     }
 
-    fn release(&mut self, button: Button) {
+    pub fn release(&mut self, button: Button) {
         info!("Button release: {:?}", button);
         self.matrix &= !unsafe { mem::transmute::<_, u8>(button) };
     }
 }
 
 impl Device for Joypad {
+    fn debug_name() -> Option<&'static str> {
+        Some("Joypad")
+    }
+
     fn read(&self, address: u16) -> u8 {
-        assert_eq!(0xff00, address);
+        if address != 0xff00 {
+            invalid_read(address);
+        }
 
         let data = match self.select {
             Select::Button => (self.matrix & 0xf) | 0b0010_0000,
@@ -61,7 +69,9 @@ impl Device for Joypad {
     }
 
     fn write(&mut self, address: u16, mut data: u8) {
-        assert_eq!(0xff00, address);
+        if address != 0xff00 {
+            invalid_write(address);
+        }
 
         // we're swapping the meaning of 0 and 1 internally
         // so we need to invert the data bits

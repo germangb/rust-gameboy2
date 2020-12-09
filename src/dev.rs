@@ -1,9 +1,80 @@
 use byteorder::{ByteOrder, LittleEndian};
+use educe::Educe;
+use log::{error, info};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 pub type Address = u16;
 
+// returned for invalid memory accesses
+// panics on release builds
+pub(crate) fn invalid_read(address: Address) -> u8 {
+    error!("Read from invalid address: {:#04x}", address);
+    #[cfg(debug_assertions)]
+    panic!();
+    #[cfg(not(debug_assertions))]
+    0
+}
+
+// returned for invalid memory accesses
+// panics on release builds
+pub(crate) fn invalid_write(address: Address) {
+    error!("Write to invalid address: {:#04x}", address);
+    #[cfg(debug_assertions)]
+    panic!();
+}
+
+/// Adds logging (using the log crate) to trace reads and writes.
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Educe)]
+#[educe(Deref, DerefMut)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub(crate) struct LogDevice<D>(#[educe(Deref, DerefMut)] D);
+
+impl<D: Device> Device for LogDevice<D> {
+    fn debug_name() -> Option<&'static str> {
+        D::debug_name()
+    }
+
+    fn read(&self, address: u16) -> u8 {
+        read(self, address)
+    }
+
+    fn write(&mut self, address: u16, data: u8) {
+        write(self, address, data)
+    }
+}
+
+/// Read from device.
+///
+/// Unlike when using the trait method directly, this method will use the log
+/// crate to add info logs.
+pub fn read<D: Device>(device: &D, address: Address) -> u8 {
+    info!(
+        "Reading from device (name = {:?}): {:#04x}",
+        D::debug_name(),
+        address
+    );
+    let data = device.read(address);
+    info!("Read data: {:#02x} ({})", data, data);
+    data
+}
+
+/// Write data to device
+///
+/// Unlike when using the trait method directly, this method will use the log
+/// crate to add info logs.
+pub fn write<D: Device>(device: &mut D, address: Address, data: u8) {
+    #[rustfmt::skip]
+    info!("Writing {:#02x} to device (name = {:?}): {:#04x}", data, D::debug_name(), address);
+    device.write(address, data);
+}
+
 /// Memory-mapped device you can read & write bytes from and to.
 pub trait Device {
+    fn debug_name() -> Option<&'static str> {
+        None
+    }
+
     /// Read byte
     fn read(&self, address: Address) -> u8;
 

@@ -12,6 +12,8 @@ pub struct Registers {
     pub e: u8,
     pub h: u8,
     pub l: u8,
+    pub pc: u16,
+    pub sp: u16,
 }
 
 // Internal macro to check the state of the flags register.

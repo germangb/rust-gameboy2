@@ -15,52 +15,33 @@ pub struct Registers {
 }
 
 // Internal macro to check the state of the flags register.
+#[rustfmt::skip]
 macro_rules! flag {
-    ($reg:expr, Z) => {
-        ($reg.f & 0b1000_0000) != 0
-    };
-    ($reg:expr, N) => {
-        ($reg.f & 0b0100_0000) != 0
-    };
-    ($reg:expr, H) => {
-        ($reg.f & 0b0010_0000) != 0
-    };
-    ($reg:expr, C) => {
-        ($reg.f & 0b0001_0000) != 0
+    (_, $reg:expr, $mask:expr) => {
+        ($reg.f & ($mask << 4)) != 0
     };
 
-    ($reg:expr, Z = $val:expr) => {
+    ($reg:expr, Z) => { flag!(_, $reg, 0b1000) };
+    ($reg:expr, N) => { flag!(_, $reg, 0b0100) };
+    ($reg:expr, H) => { flag!(_, $reg, 0b0010) };
+    ($reg:expr, C) => { flag!(_, $reg, 0b0001) };
+
+    (_, $reg:expr, $mask:expr, $val:expr) => {
         if $val {
-            $reg.f |= 0b1000_0000
+            $reg.f |= $mask << 4;
         } else {
-            $reg.f &= !0b1000_0000
+            $reg.f &= !($mask << 4);
         }
     };
-    ($reg:expr, N = $val:expr) => {
-        if $val {
-            $reg.f |= 0b0100_0000
-        } else {
-            $reg.f &= !0b0100_0000
-        }
-    };
-    ($reg:expr, H = $val:expr) => {
-        if $val {
-            $reg.f |= 0b0010_0000
-        } else {
-            $reg.f &= !0b0010_0000
-        }
-    };
-    ($reg:expr, C = $val:expr) => {
-        if $val {
-            $reg.f |= 0b0001_0000
-        } else {
-            $reg.f &= !0b0001_0000
-        }
-    };
+
+    ($reg:expr, Z = $val:expr) => { flag!(_, $reg, 0b1000, $val) };
+    ($reg:expr, N = $val:expr) => { flag!(_, $reg, 0b0100, $val) };
+    ($reg:expr, H = $val:expr) => { flag!(_, $reg, 0b0010, $val) };
+    ($reg:expr, C = $val:expr) => { flag!(_, $reg, 0b0001, $val) };
 }
 
 // macro to implement getters&setter methods of u16 registers
-macro_rules! words {
+macro_rules! register {
     (fn { $fn_get:ident, $fn_set:ident } ($hi:ident, $lo:ident)) => {
         fn $fn_get(&self) -> u16 {
             let hi = self.$hi as u16;
@@ -78,10 +59,10 @@ macro_rules! words {
 }
 
 impl Registers {
-    words!(fn {af, set_af} (a, f));
-    words!(fn {bc, set_bc} (b, c));
-    words!(fn {de, set_de} (d, e));
-    words!(fn {hl, set_hl} (h, l));
+    register!(fn {af, set_af} (a, f));
+    register!(fn {bc, set_bc} (b, c));
+    register!(fn {de, set_de} (d, e));
+    register!(fn {hl, set_hl} (h, l));
 }
 
 #[cfg(test)]

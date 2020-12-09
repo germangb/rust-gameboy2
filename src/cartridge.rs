@@ -1,4 +1,9 @@
-use crate::dev::Device;
+use crate::{
+    dev::{invalid_read, invalid_write, Device},
+    Update,
+};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 /// Cartridge header decoder.
 #[cfg(nop)]
@@ -11,5 +16,24 @@ pub trait Cartridge: Device {
     /// Return cartridge header decoder.
     fn header(&self) -> HeaderDecoder<'_> {
         HeaderDecoder { inner: self }
+    }
+}
+
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct NoCartridge;
+
+impl Device for NoCartridge {
+    fn read(&self, address: u16) -> u8 {
+        if matches!(address, 0x0000..=0x7fff | 0xa000..=0xbfff) {
+            0xff
+        } else {
+            invalid_read(address)
+        }
+    }
+
+    fn write(&mut self, address: u16, data: u8) {
+        if !matches!(address, 0x0000..=0x7fff | 0xa000..=0xbfff) {
+            invalid_write(address)
+        }
     }
 }

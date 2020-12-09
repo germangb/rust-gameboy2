@@ -6,7 +6,7 @@ pub mod registers;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Cpu {
+pub struct CPU {
     registers: Registers,
     ime: bool,
 }

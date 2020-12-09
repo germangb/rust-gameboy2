@@ -19,11 +19,13 @@
 
 pub use crate::joypad::Button;
 use crate::{
+    boot::Boot,
     cartridge::Cartridge,
+    cpu::CPU,
     dev::{Address, Device, LogDevice},
     dma::OamDma,
     joypad::Joypad,
-    ppu::{lcd::LcdBuffer, Ppu},
+    ppu::{lcd::LcdBuffer, PPU},
     timer::Timer,
 };
 use log::{error, warn};
@@ -31,6 +33,7 @@ use log::{error, warn};
 use serde::{Deserialize, Serialize};
 use std::cell::Cell;
 
+mod boot;
 pub mod cartridge;
 pub mod cpu;
 pub mod dev;
@@ -54,20 +57,31 @@ trait Update {
     fn update(&mut self, step: &EmulationStep);
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 struct Emulator<C> {
     running: Cell<bool>,
+    cpu: CPU,
     cartridge: LogDevice<C>,
+    boot: LogDevice<Boot>,
     oam_dma: LogDevice<OamDma>,
     joypad: LogDevice<Joypad>,
-    ppu: LogDevice<Ppu>,
+    ppu: LogDevice<PPU>,
     timer: LogDevice<Timer>,
 }
 
 impl<C: Cartridge> Emulator<C> {
     fn new(cartridge: C) -> Self {
         todo!()
+    }
+
+    fn update(&mut self) {
+        if self.running.get() {
+            let step = todo!();
+
+            self.oam_dma.update(&step);
+            self.ppu.update(&step);
+            self.timer.update(&step);
+        }
     }
 
     fn display(&self) -> &LcdBuffer {
@@ -89,7 +103,7 @@ impl<C: Cartridge> Emulator<C> {
             0xff46          => self.oam_dma.read(address),
             0xff47..=0xff4b => self.ppu.read(address),
             0xff4f          => todo!("Game Boy Color (VRAM Bank Select)"),
-            0xff50          => todo!("Boot ROM"),
+            0xff50          => self.boot.read(address),
             0xff51..=0xff55 => todo!("Game Boy color"),
             0xff68..=0xff6a => todo!("Game Boy color (DMA)"),
             _               => todo!("IO register I have missed ({:#04x})!", address),
@@ -115,7 +129,7 @@ impl<C: Cartridge> Emulator<C> {
             }
             0xff47..=0xff4b => self.ppu.write(address, data),
             0xff4f          => todo!("Game Boy Color (VRAM Bank Select)"),
-            0xff50          => todo!("Boot ROM"),
+            0xff50          => self.boot.write(address, data),
             0xff51..=0xff55 => todo!("Game Boy color"),
             0xff68..=0xff6a => todo!("Game Boy color (DMA)"),
             _               => todo!("IO register I have missed ({:#04x})!", address),
@@ -171,8 +185,10 @@ impl<C: Cartridge> Emulator<C> {
 impl<C: Cartridge> Device for Emulator<C> {
     fn read(&self, address: u16) -> u8 {
         let oam_dma = self.oam_dma.is_active();
+        let boot = self.boot.is_enabled();
 
         match address {
+            0x0000..=0x00ff if boot => self.boot.read(address),
             0x0000..=0x7fff if !oam_dma => self.cartridge.read(address),
             0x8000..=0x9fff if !oam_dma => self.ppu.read(address),
             0xa000..=0xbfff if !oam_dma => self.cartridge.read(address),
@@ -213,9 +229,11 @@ impl<C: Cartridge> Device for Emulator<C> {
 
     fn write(&mut self, address: u16, data: u8) {
         let oam_dma = self.oam_dma.is_active();
+        let boot = self.boot.is_enabled();
 
         // FIXME code repetition...
         match address {
+            0x0000..=0x00ff if boot => self.boot.write(address, data),
             0x0000..=0x7fff if !oam_dma => self.cartridge.write(address, data),
             0x8000..=0x9fff if !oam_dma => self.ppu.write(address, data),
             0xa000..=0xbfff if !oam_dma => self.cartridge.write(address, data),
@@ -252,5 +270,25 @@ impl<C: Cartridge> Device for Emulator<C> {
     }
 }
 
-pub struct GameBoy;
+/// Game Boy (non-color) emulator.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct GameBoy<C> {
+    boot: bool,
+    emulator: Emulator<C>,
+}
+
+impl<C: Cartridge> GameBoy<C> {
+    /// Skip boot sequence.
+    pub fn skip_boot(&mut self) {
+        if self.boot {
+            panic!("Emulator is already booted!");
+        } else {
+            self.boot = true;
+            self.emulator.skip_boot();
+        }
+    }
+}
+
+/// Game Boy Color emulator.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct GameBoyColor;

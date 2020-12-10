@@ -1,4 +1,4 @@
-use crate::dev::{invalid_read, invalid_write, Device};
+use crate::device::{invalid_read, invalid_write, Device};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -42,7 +42,7 @@ impl Device for WorkRAM {
 #[cfg(test)]
 mod test {
     use super::WorkRAM;
-    use crate::dev::Device;
+    use crate::device::Device;
 
     #[test]
     fn work_ram() {

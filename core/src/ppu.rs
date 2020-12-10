@@ -1,8 +1,8 @@
 use crate::{
-    dev::{invalid_read, invalid_write, Address, Device},
+    device::{invalid_read, invalid_write, Address, Device},
     ppu::{
         io::{lcdc::LCDC, stat::STAT},
-        lcd::LcdBuffer,
+        lcd::{Display, DisplaySerde},
         oam::OAMTable,
         video_ram::VideoRAM,
     },
@@ -20,7 +20,7 @@ mod video_ram;
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PPU {
     #[cfg_attr(feature = "serde", serde(skip))]
-    buffer: Box<LcdBuffer>,
+    buffer: Box<DisplaySerde>,
     oam_table: OAMTable,
     video_ram: VideoRAM,
     lcdc: LCDC,
@@ -28,8 +28,7 @@ pub struct PPU {
 }
 
 impl PPU {
-    /// Returns current state of the display.
-    pub fn display(&self) -> &[lcd::Pixel; lcd::WIDTH * lcd::HEIGHT] {
+    pub fn display(&self) -> &Display {
         &self.buffer.0
     }
 }

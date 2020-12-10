@@ -1,4 +1,4 @@
-use crate::dev::{invalid_read, invalid_write, Device};
+use crate::device::{invalid_read, invalid_write, Device};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -42,7 +42,7 @@ impl Device for HighRAM {
 #[cfg(test)]
 mod test {
     use super::HighRAM;
-    use crate::dev::Device;
+    use crate::device::Device;
 
     #[test]
     fn high_ram() {

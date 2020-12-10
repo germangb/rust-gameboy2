@@ -1,5 +1,5 @@
 use crate::{
-    dev::{invalid_read, invalid_write, Device},
+    device::{invalid_read, invalid_write, Device},
     EmulationStep, Update,
 };
 #[cfg(feature = "serde")]
@@ -60,7 +60,7 @@ impl Device for OamDma {
 #[cfg(test)]
 mod test {
     use super::OamDma;
-    use crate::{dev::Device, EmulationStep, Update};
+    use crate::{device::Device, EmulationStep, Update};
 
     #[test]
     fn oam_dma_start_address() {

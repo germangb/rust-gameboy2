@@ -21,15 +21,16 @@ use crate::{
     boot::Boot,
     cartridge::Cartridge,
     cpu::CPU,
-    dev::{Address, Device, LogDevice},
+    device::{Address, Device, LogDevice},
     dma::OamDma,
     high_ram::HighRAM,
     irq::Irq,
-    joypad::{Button, Joypad},
+    joypad::Joypad,
     ppu::PPU,
     timer::Timer,
     work_ram::WorkRAM,
 };
+pub use crate::{joypad::Button, ppu::lcd};
 pub use gb::GameBoy;
 pub use gbc::GameBoyColor;
 use log::{error, info, warn};
@@ -40,14 +41,14 @@ use std::cell::Cell;
 mod boot;
 pub mod cartridge;
 pub mod cpu;
-pub mod dev;
+pub mod device;
 mod dma;
 mod gb;
 mod gbc;
 mod high_ram;
 mod irq;
-pub mod joypad;
-pub mod ppu;
+mod joypad;
+mod ppu;
 mod timer;
 mod utils;
 mod work_ram;
@@ -101,8 +102,6 @@ impl<C> Emulator<C> {
 
 impl<C: Cartridge> Emulator<C> {
     fn update(&mut self) {
-        info!("Begin emulator update");
-
         if self.running.get() {
             let mut cpu = self.cpu.take().unwrap();
             let cpu_step = cpu.update(self);
@@ -117,8 +116,6 @@ impl<C: Cartridge> Emulator<C> {
         } else {
             warn!("Emulator is no longer running")
         }
-
-        info!("End of emulator update");
     }
 
     fn stop_running(&self) {
@@ -278,7 +275,7 @@ impl<C: Cartridge> Device for Emulator<C> {
 
 #[cfg(test)]
 mod test {
-    use crate::{cartridge::Cartridge, dev::Device, Emulator};
+    use crate::{cartridge::Cartridge, device::Device, Emulator};
 
     #[test]
     fn oam_dma() {

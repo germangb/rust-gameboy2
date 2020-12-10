@@ -18,7 +18,7 @@ fn main() {
     while window.is_open() {
         gb.update();
         window
-            .update_with_buffer(&gb.ppu().display()[..], 160, 144)
+            .update_with_buffer(&gb.display()[..], 160, 144)
             .unwrap();
     }
 }

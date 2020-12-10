@@ -1,10 +1,11 @@
-use crate::{cartridge::Cartridge, cpu::registers::Registers, dev::Device};
+use crate::{cartridge::Cartridge, device::Device};
 use log::info;
+pub use registers::Registers;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 #[macro_use]
-pub mod registers;
+mod registers;
 
 #[derive(Default, Debug, Clone, Copy, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

@@ -1,20 +1,11 @@
-use crate::{
-    cartridge::Cartridge,
-    cpu::CPU,
-    dev::Device,
-    joypad::{Button, Joypad},
-    ppu::PPU,
-    Emulator,
-};
+use crate::{cartridge::Cartridge, cpu::CPU, device::Device, lcd::Display, Button, Emulator};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// Game Boy (non-color) emulator.
 ///
 /// ```
-/// use core::GameBoy;
-/// use core::cartridge::NoCartridge;
-/// use core::joypad::Button;
+/// use core::{GameBoy, Button, cartridge::NoCartridge};
 ///
 /// let mut gb = GameBoy::new(NoCartridge);
 ///
@@ -25,12 +16,12 @@ use serde::{Deserialize, Serialize};
 /// let lcd = gb.ppu().display();
 /// ```
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct GameBoy<C> {
+pub struct GameBoy<C: Cartridge> {
     booted: bool,
     emulator: Emulator<C>,
 }
 
-impl<C> GameBoy<C> {
+impl<C: Cartridge> GameBoy<C> {
     pub fn new(cartridge: C) -> Self {
         let mut emulator = Self {
             booted: false,
@@ -41,6 +32,10 @@ impl<C> GameBoy<C> {
         emulator
     }
 
+    pub fn display(&self) -> &Display {
+        self.emulator.ppu.display()
+    }
+
     pub fn cpu(&self) -> &CPU {
         self.emulator.cpu.as_ref().unwrap()
     }
@@ -49,16 +44,14 @@ impl<C> GameBoy<C> {
         self.emulator.cpu.as_mut().unwrap()
     }
 
-    pub fn ppu(&self) -> &PPU {
-        &self.emulator.ppu
+    pub fn press(&mut self, button: &Button) {
+        self.emulator.joypad.press(button)
     }
 
-    pub fn joypad_mut(&mut self) -> &mut Joypad {
-        &mut self.emulator.joypad
+    pub fn release(&mut self, button: &Button) {
+        self.emulator.joypad.release(button)
     }
-}
 
-impl<C: Cartridge> GameBoy<C> {
     /// Skip boot sequence.
     pub fn skip_boot(&mut self) {
         if self.booted {
@@ -131,7 +124,7 @@ impl<C: Cartridge> GameBoy<C> {
 
 impl<C: Cartridge> Device for GameBoy<C> {
     fn debug_name() -> &'static str {
-        "GameBoy"
+        "GameBoy (DMG-01)"
     }
 
     fn read(&self, address: u16) -> u8 {

@@ -1,4 +1,4 @@
-use crate::dev::{invalid_read, invalid_write, Device};
+use crate::device::{invalid_read, invalid_write, Device};
 use log::{error, info};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -72,7 +72,7 @@ impl Device for Boot {
 mod test {
     use crate::{
         boot::{Boot, ROM},
-        dev::Device,
+        device::Device,
     };
 
     #[cfg(feature = "boot")]

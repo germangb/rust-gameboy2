@@ -1,4 +1,4 @@
-use crate::dev::{invalid_read, invalid_write, Device};
+use crate::device::{invalid_read, invalid_write, Device};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 

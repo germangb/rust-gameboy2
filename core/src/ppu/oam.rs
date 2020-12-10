@@ -1,4 +1,4 @@
-use crate::dev::Device;
+use crate::device::Device;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 

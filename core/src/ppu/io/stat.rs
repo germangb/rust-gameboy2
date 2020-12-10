@@ -1,5 +1,5 @@
 use crate::{
-    dev::{invalid_read, invalid_write, Device},
+    device::{invalid_read, invalid_write, Device},
     EmulationStep, Update,
 };
 #[cfg(feature = "serde")]

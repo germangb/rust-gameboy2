@@ -1,4 +1,4 @@
-use crate::dev::{invalid_read, invalid_write, Device};
+use crate::device::{invalid_read, invalid_write, Device};
 use log::{info, warn};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -99,7 +99,7 @@ impl Device for Joypad {
 #[cfg(test)]
 mod test {
     use super::{Button, Joypad, Select};
-    use crate::dev::Device;
+    use crate::device::Device;
 
     fn joypad() -> Joypad {
         Joypad {

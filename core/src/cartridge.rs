@@ -1,5 +1,5 @@
 use crate::{
-    dev::{invalid_read, invalid_write, Device},
+    device::{invalid_read, invalid_write, Device},
     Update,
 };
 #[cfg(feature = "serde")]
@@ -31,3 +31,8 @@ impl Device for NoCartridge {
         }
     }
 }
+
+pub struct SingleBank;
+pub struct MBC1;
+pub struct MBC3;
+pub struct MBC5;

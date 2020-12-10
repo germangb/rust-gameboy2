@@ -2,7 +2,7 @@ use crate::dev::Device;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Default, Debug, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct OamTable {}
 

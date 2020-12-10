@@ -25,10 +25,10 @@ pub(crate) fn invalid_write(address: Address) {
 }
 
 /// Adds logging (using the log crate) to trace reads and writes.
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Educe)]
+#[derive(Default, Debug, Clone, Eq, PartialEq, Hash, Educe)]
 #[educe(Deref, DerefMut)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub(crate) struct LogDevice<D>(#[educe(Deref, DerefMut)] D);
+pub(crate) struct LogDevice<D>(#[educe(Deref, DerefMut)] pub D);
 
 impl<D: Device> Device for LogDevice<D> {
     fn debug_name() -> Option<&'static str> {

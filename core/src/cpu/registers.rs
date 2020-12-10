@@ -45,13 +45,13 @@ macro_rules! flag {
 // macro to implement getters&setter methods of u16 registers
 macro_rules! register {
     (fn { $fn_get:ident, $fn_set:ident } ($hi:ident, $lo:ident)) => {
-        fn $fn_get(&self) -> u16 {
+        pub fn $fn_get(&self) -> u16 {
             let hi = self.$hi as u16;
             let lo = self.$lo as u16;
             (hi << 8) | lo
         }
 
-        fn $fn_set(&mut self, data: u16) {
+        pub fn $fn_set(&mut self, data: u16) {
             let hi = (data >> 8) & 0xff;
             let lo = data & 0xff;
             self.$hi = hi as _;

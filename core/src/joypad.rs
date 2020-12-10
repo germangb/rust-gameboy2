@@ -35,15 +35,24 @@ pub struct Joypad {
     matrix: u8,
 }
 
+impl Default for Joypad {
+    fn default() -> Self {
+        Self {
+            select: Select::Undefined,
+            matrix: 0,
+        }
+    }
+}
+
 impl Joypad {
-    pub fn press(&mut self, button: Button) {
+    pub fn press(&mut self, button: &Button) {
         info!("Button press: {:?}", button);
-        self.matrix |= unsafe { mem::transmute::<_, u8>(button) };
+        self.matrix |= unsafe { mem::transmute::<_, u8>(*button) };
     }
 
-    pub fn release(&mut self, button: Button) {
+    pub fn release(&mut self, button: &Button) {
         info!("Button release: {:?}", button);
-        self.matrix &= !unsafe { mem::transmute::<_, u8>(button) };
+        self.matrix &= !unsafe { mem::transmute::<_, u8>(*button) };
     }
 }
 
@@ -103,8 +112,8 @@ mod test {
     fn button_select() {
         let mut joypad = joypad();
 
-        joypad.press(Button::A);
-        joypad.press(Button::Select);
+        joypad.press(&Button::A);
+        joypad.press(&Button::Select);
 
         // select button row
         joypad.write(0xff00, 0b0001_0000);
@@ -116,8 +125,8 @@ mod test {
     fn direction_select() {
         let mut joypad = joypad();
 
-        joypad.press(Button::Right);
-        joypad.press(Button::Up);
+        joypad.press(&Button::Right);
+        joypad.press(&Button::Up);
 
         // select direction row
         joypad.write(0xff00, 0b0010_0000);

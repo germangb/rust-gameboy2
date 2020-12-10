@@ -20,8 +20,8 @@ pub struct Timer {
     tac: u8,
 }
 
-impl Timer {
-    fn new() -> Self {
+impl Default for Timer {
+    fn default() -> Self {
         Self {
             div: 0,
             div_clock: ClockDecimate::new(CLOCK, DIV),
@@ -31,7 +31,9 @@ impl Timer {
             tac: 0,
         }
     }
+}
 
+impl Timer {
     fn update_tima_clock(&mut self) {
         let target = CLOCK / TIMA[self.tac as usize & 0b11];
         self.tima_clock = ClockDecimate::new(CLOCK, target);

@@ -1,6 +1,11 @@
 use crate::{
     dev::{invalid_read, invalid_write, Address, Device},
-    ppu::{lcd::LcdBuffer, oam::OamTable, video_ram::VideoRam},
+    ppu::{
+        io::{lcdc::LCDC, stat::STAT},
+        lcd::LcdBuffer,
+        oam::OamTable,
+        video_ram::VideoRAM,
+    },
     EmulationStep, Update,
 };
 #[cfg(feature = "serde")]
@@ -8,32 +13,23 @@ use serde::{Deserialize, Serialize};
 
 mod io;
 pub mod lcd;
-mod oam;
-mod video_ram;
+pub mod oam;
+pub mod video_ram;
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Default, Debug, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PPU {
     #[cfg_attr(feature = "serde", serde(skip))]
     buffer: Box<LcdBuffer>,
     oam_table: OamTable,
-    video_ram: VideoRam,
+    video_ram: VideoRAM,
+    lcdc: LCDC,
+    stat: STAT,
 }
 
 impl PPU {
     pub fn buffer(&self) -> &LcdBuffer {
         &self.buffer
-    }
-
-    /// Perform OAM DMA transfer
-    pub fn oam_dma_transfer(&mut self, from: Address) {
-        let src = from..=from | 0x9f;
-        let dst = 0xfe00..0xfe9f;
-
-        for (src, dst) in src.zip(dst) {
-            let data = self.read(src);
-            self.write(dst, data);
-        }
     }
 }
 
@@ -52,6 +48,8 @@ impl Device for PPU {
         match address {
             0x8000..=0x9fff => self.video_ram.read(address),
             0xfe00..=0xfe9f => self.oam_table.read(address),
+            0xff40 => self.lcdc.read(address),
+            0xff41 => self.stat.read(address),
             _ => invalid_read(address),
         }
     }
@@ -60,15 +58,9 @@ impl Device for PPU {
         match address {
             0x8000..=0x9fff => self.video_ram.write(address, data),
             0xfe00..=0xfe9f => self.oam_table.write(address, data),
+            0xff40 => self.lcdc.write(address, data),
+            0xff41 => self.stat.write(address, data),
             _ => invalid_write(address),
         }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    #[test]
-    fn oam_dma_transfer() {
-        todo!()
     }
 }

@@ -17,17 +17,20 @@
     nonstandard_style
 )]
 
-pub use crate::joypad::Button;
 use crate::{
     boot::Boot,
     cartridge::Cartridge,
     cpu::CPU,
     dev::{Address, Device, LogDevice},
     dma::OamDma,
-    joypad::Joypad,
+    high_ram::HighRAM,
+    joypad::{Button, Joypad},
     ppu::{lcd::LcdBuffer, PPU},
     timer::Timer,
+    work_ram::WorkRAM,
 };
+pub use gb::GameBoy;
+pub use gbc::GameBoyColor;
 use log::{error, warn};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -38,8 +41,10 @@ pub mod cartridge;
 pub mod cpu;
 pub mod dev;
 mod dma;
+mod gb;
+mod gbc;
 mod high_ram;
-mod joypad;
+pub mod joypad;
 pub mod ppu;
 mod timer;
 mod utils;
@@ -67,13 +72,28 @@ struct Emulator<C> {
     joypad: LogDevice<Joypad>,
     ppu: LogDevice<PPU>,
     timer: LogDevice<Timer>,
+    work_ram: LogDevice<WorkRAM>,
+    high_ram: LogDevice<HighRAM>,
+}
+
+impl<C> Emulator<C> {
+    fn new(cartridge: C) -> Self {
+        Self {
+            running: Cell::new(true),
+            cpu: Default::default(),
+            cartridge: LogDevice(cartridge),
+            boot: Default::default(),
+            oam_dma: Default::default(),
+            joypad: Default::default(),
+            ppu: Default::default(),
+            timer: Default::default(),
+            work_ram: Default::default(),
+            high_ram: Default::default(),
+        }
+    }
 }
 
 impl<C: Cartridge> Emulator<C> {
-    fn new(cartridge: C) -> Self {
-        todo!()
-    }
-
     fn update(&mut self) {
         if self.running.get() {
             let step = todo!();
@@ -82,10 +102,6 @@ impl<C: Cartridge> Emulator<C> {
             self.ppu.update(&step);
             self.timer.update(&step);
         }
-    }
-
-    fn display(&self) -> &LcdBuffer {
-        self.ppu.buffer()
     }
 
     fn stop_running(&self) {
@@ -137,48 +153,15 @@ impl<C: Cartridge> Emulator<C> {
     }
 
     fn oam_dma_transfer(&mut self) {
-        let start = self.oam_dma.start_address();
-        self.ppu.oam_dma_transfer(start);
-    }
+        let src = self.oam_dma.start_address();
 
-    fn skip_boot(&mut self) {
-        // init cpu
-        todo!("CPU registers");
-        todo!("Other CPU state");
+        let src = src..=src | 0x9f;
+        let dst = 0xfe00..0xfe9f;
 
-        // init memory
-        self.write(0xff05, 0x00);
-        self.write(0xff06, 0x00);
-        self.write(0xff07, 0x00);
-        self.write(0xff10, 0x80);
-        self.write(0xff11, 0xbf);
-        self.write(0xff12, 0xf3);
-        self.write(0xff14, 0xbf);
-        self.write(0xff16, 0x3f);
-        self.write(0xff17, 0x00);
-        self.write(0xff19, 0xbf);
-        self.write(0xff1a, 0x7f);
-        self.write(0xff1b, 0xff);
-        self.write(0xff1c, 0x9f);
-        self.write(0xff1e, 0xbf);
-        self.write(0xff20, 0xff);
-        self.write(0xff21, 0x00);
-        self.write(0xff22, 0x00);
-        self.write(0xff23, 0xbf);
-        self.write(0xff24, 0x77);
-        self.write(0xff25, 0xf3);
-        self.write(0xff26, 0xf1);
-        self.write(0xff40, 0x91);
-        self.write(0xff42, 0x00);
-        self.write(0xff43, 0x00);
-        self.write(0xff45, 0x00);
-        self.write(0xff47, 0xfc);
-        self.write(0xff48, 0xff);
-        self.write(0xff49, 0xff);
-        self.write(0xff4a, 0x00);
-        self.write(0xff4b, 0x00);
-        self.write(0xffff, 0x00);
-        self.write(0xff50, 0x01);
+        for (src, dst) in src.zip(dst) {
+            let data = self.read(src);
+            self.write(dst, data);
+        }
     }
 }
 
@@ -212,7 +195,7 @@ impl<C: Cartridge> Device for Emulator<C> {
             }
             0xfea0..=0xfeff => 0xff,
             0xff00..=0xff7f if !oam_dma => self.read_io(address),
-            0xff80..=0xfffe => todo!("High Ram"),
+            0xff80..=0xfffe => self.high_ram.read(address),
             0xffff..=0xffff if !oam_dma => todo!("Interrupts"),
 
             // illegal access during OAM DMA transfer
@@ -237,7 +220,7 @@ impl<C: Cartridge> Device for Emulator<C> {
             0x0000..=0x7fff if !oam_dma => self.cartridge.write(address, data),
             0x8000..=0x9fff if !oam_dma => self.ppu.write(address, data),
             0xa000..=0xbfff if !oam_dma => self.cartridge.write(address, data),
-            0xc000..=0xdfff if !oam_dma => todo!("Work Ram"),
+            0xc000..=0xdfff if !oam_dma => self.work_ram.write(address, data),
             // Nintendo says use of this area is prohibited.
             0xe000..=0xfdff => {
                 error!("Echo RAM");
@@ -255,7 +238,7 @@ impl<C: Cartridge> Device for Emulator<C> {
                 self.stop_running();
             }
             0xff00..=0xff7f if !oam_dma => self.write_io(address, data),
-            0xff80..=0xfffe => todo!("High Ram"),
+            0xff80..=0xfffe => self.high_ram.write(address, data),
             0xffff..=0xffff if !oam_dma => todo!("Interrupts"),
 
             // illegal access during OAM DMA transfer
@@ -270,25 +253,12 @@ impl<C: Cartridge> Device for Emulator<C> {
     }
 }
 
-/// Game Boy (non-color) emulator.
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct GameBoy<C> {
-    boot: bool,
-    emulator: Emulator<C>,
-}
+#[cfg(test)]
+mod test {
+    use crate::{cartridge::Cartridge, dev::Device, Emulator};
 
-impl<C: Cartridge> GameBoy<C> {
-    /// Skip boot sequence.
-    pub fn skip_boot(&mut self) {
-        if self.boot {
-            panic!("Emulator is already booted!");
-        } else {
-            self.boot = true;
-            self.emulator.skip_boot();
-        }
+    #[test]
+    fn oam_dma() {
+        todo!();
     }
 }
-
-/// Game Boy Color emulator.
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct GameBoyColor;

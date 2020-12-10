@@ -1,4 +1,5 @@
 use crate::{cartridge::Cartridge, cpu::registers::Registers, dev::Device};
+use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -51,13 +52,421 @@ impl CPU {
     }
 
     fn int_v<D: Device>(&mut self, v: u16, device: &mut D) {
+        info!("Jump to interrupt vector: {:#04x}", v);
+
         self.stack_push(self.registers.pc, device);
         self.registers.pc = v;
     }
 
+    fn exec_cb<D: Device>(&mut self, device: &mut D) -> u64 {
+        let opcode = self.fetch(device);
+
+        info!("Fetched CB opcode: {:#02x}", opcode);
+
+        match opcode {
+            // RLC n
+            0x00 => self.registers.b = self.rlc_n(self.registers.b),
+            0x01 => self.registers.c = self.rlc_n(self.registers.c),
+            0x02 => self.registers.d = self.rlc_n(self.registers.d),
+            0x03 => self.registers.e = self.rlc_n(self.registers.e),
+            0x04 => self.registers.h = self.rlc_n(self.registers.h),
+            0x05 => self.registers.l = self.rlc_n(self.registers.l),
+            0x06 => {
+                let hl = self.registers.hl();
+                device.write(hl, self.rlc_n(device.read(hl)))
+            }
+            0x07 => self.registers.a = self.rlc_n(self.registers.a),
+
+            // RRC n
+            0x08 => self.registers.b = self.rrc_n(self.registers.b),
+            0x09 => self.registers.c = self.rrc_n(self.registers.c),
+            0x0a => self.registers.d = self.rrc_n(self.registers.d),
+            0x0b => self.registers.e = self.rrc_n(self.registers.e),
+            0x0c => self.registers.h = self.rrc_n(self.registers.h),
+            0x0d => self.registers.l = self.rrc_n(self.registers.l),
+            0x0e => {
+                let hl = self.registers.hl();
+                device.write(hl, self.rrc_n(device.read(hl)))
+            }
+            0x0f => self.registers.a = self.rrc_n(self.registers.a),
+
+            // RL n
+            0x10 => self.registers.b = self.rl_n(self.registers.b),
+            0x11 => self.registers.c = self.rl_n(self.registers.c),
+            0x12 => self.registers.d = self.rl_n(self.registers.d),
+            0x13 => self.registers.e = self.rl_n(self.registers.e),
+            0x14 => self.registers.h = self.rl_n(self.registers.h),
+            0x15 => self.registers.l = self.rl_n(self.registers.l),
+            0x16 => {
+                let hl = self.registers.hl();
+                device.write(hl, self.rl_n(device.read(hl)))
+            }
+            0x17 => self.registers.a = self.rl_n(self.registers.a),
+
+            // RR n
+            0x18 => self.registers.b = self.rr_n(self.registers.b),
+            0x19 => self.registers.c = self.rr_n(self.registers.c),
+            0x1a => self.registers.d = self.rr_n(self.registers.d),
+            0x1b => self.registers.e = self.rr_n(self.registers.e),
+            0x1c => self.registers.h = self.rr_n(self.registers.h),
+            0x1d => self.registers.l = self.rr_n(self.registers.l),
+            0x1e => {
+                let hl = self.registers.hl();
+                device.write(hl, self.rr_n(device.read(hl)))
+            }
+            0x1f => self.registers.a = self.rr_n(self.registers.a),
+
+            // SWAP n
+            0x30 => self.registers.b = self.swap_n(self.registers.b),
+            0x31 => self.registers.c = self.swap_n(self.registers.c),
+            0x32 => self.registers.d = self.swap_n(self.registers.d),
+            0x33 => self.registers.e = self.swap_n(self.registers.e),
+            0x34 => self.registers.h = self.swap_n(self.registers.h),
+            0x35 => self.registers.l = self.swap_n(self.registers.l),
+            0x36 => {
+                let hl = self.registers.hl();
+                device.write(hl, self.swap_n(device.read(hl)))
+            }
+            0x37 => self.registers.a = self.swap_n(self.registers.a),
+
+            // BIT 0,n
+            0x40 => self.bit_b_n(0, self.registers.b),
+            0x41 => self.bit_b_n(0, self.registers.c),
+            0x42 => self.bit_b_n(0, self.registers.d),
+            0x43 => self.bit_b_n(0, self.registers.e),
+            0x44 => self.bit_b_n(0, self.registers.h),
+            0x45 => self.bit_b_n(0, self.registers.l),
+            0x46 => self.bit_b_n(0, device.read(self.registers.hl())),
+            0x47 => self.bit_b_n(0, self.registers.a),
+
+            // BIT 1,n
+            0x48 => self.bit_b_n(1, self.registers.b),
+            0x49 => self.bit_b_n(1, self.registers.c),
+            0x4a => self.bit_b_n(1, self.registers.d),
+            0x4b => self.bit_b_n(1, self.registers.e),
+            0x4c => self.bit_b_n(1, self.registers.h),
+            0x4d => self.bit_b_n(1, self.registers.l),
+            0x4e => self.bit_b_n(1, device.read(self.registers.hl())),
+            0x4f => self.bit_b_n(1, self.registers.a),
+
+            // BIT 2,n
+            0x50 => self.bit_b_n(2, self.registers.b),
+            0x51 => self.bit_b_n(2, self.registers.c),
+            0x52 => self.bit_b_n(2, self.registers.d),
+            0x53 => self.bit_b_n(2, self.registers.e),
+            0x54 => self.bit_b_n(2, self.registers.h),
+            0x55 => self.bit_b_n(2, self.registers.l),
+            0x56 => self.bit_b_n(2, device.read(self.registers.hl())),
+            0x57 => self.bit_b_n(2, self.registers.a),
+
+            // BIT 3,n
+            0x58 => self.bit_b_n(3, self.registers.b),
+            0x59 => self.bit_b_n(3, self.registers.c),
+            0x5a => self.bit_b_n(3, self.registers.d),
+            0x5b => self.bit_b_n(3, self.registers.e),
+            0x5c => self.bit_b_n(3, self.registers.h),
+            0x5d => self.bit_b_n(3, self.registers.l),
+            0x5e => self.bit_b_n(3, device.read(self.registers.hl())),
+            0x5f => self.bit_b_n(3, self.registers.a),
+
+            // BIT 4,n
+            0x60 => self.bit_b_n(4, self.registers.b),
+            0x61 => self.bit_b_n(4, self.registers.c),
+            0x62 => self.bit_b_n(4, self.registers.d),
+            0x63 => self.bit_b_n(4, self.registers.e),
+            0x64 => self.bit_b_n(4, self.registers.h),
+            0x65 => self.bit_b_n(4, self.registers.l),
+            0x66 => self.bit_b_n(4, device.read(self.registers.hl())),
+            0x67 => self.bit_b_n(4, self.registers.a),
+
+            // BIT 5,n
+            0x68 => self.bit_b_n(5, self.registers.b),
+            0x69 => self.bit_b_n(5, self.registers.c),
+            0x6a => self.bit_b_n(5, self.registers.d),
+            0x6b => self.bit_b_n(5, self.registers.e),
+            0x6c => self.bit_b_n(5, self.registers.h),
+            0x6d => self.bit_b_n(5, self.registers.l),
+            0x6e => self.bit_b_n(5, device.read(self.registers.hl())),
+            0x6f => self.bit_b_n(5, self.registers.a),
+
+            // BIT 6,n
+            0x70 => self.bit_b_n(6, self.registers.b),
+            0x71 => self.bit_b_n(6, self.registers.c),
+            0x72 => self.bit_b_n(6, self.registers.d),
+            0x73 => self.bit_b_n(6, self.registers.e),
+            0x74 => self.bit_b_n(6, self.registers.h),
+            0x75 => self.bit_b_n(6, self.registers.l),
+            0x76 => self.bit_b_n(6, device.read(self.registers.hl())),
+            0x77 => self.bit_b_n(6, self.registers.a),
+
+            // BIT 7,n
+            0x78 => self.bit_b_n(7, self.registers.b),
+            0x79 => self.bit_b_n(7, self.registers.c),
+            0x7a => self.bit_b_n(7, self.registers.d),
+            0x7b => self.bit_b_n(7, self.registers.e),
+            0x7c => self.bit_b_n(7, self.registers.h),
+            0x7d => self.bit_b_n(7, self.registers.l),
+            0x7e => self.bit_b_n(7, device.read(self.registers.hl())),
+            0x7f => self.bit_b_n(7, self.registers.a),
+
+            // RES 0,n
+            0x80 => self.registers.b = self.res_b_n(0, self.registers.b),
+            0x81 => self.registers.c = self.res_b_n(0, self.registers.c),
+            0x82 => self.registers.d = self.res_b_n(0, self.registers.d),
+            0x83 => self.registers.e = self.res_b_n(0, self.registers.e),
+            0x84 => self.registers.h = self.res_b_n(0, self.registers.h),
+            0x85 => self.registers.l = self.res_b_n(0, self.registers.l),
+            0x86 => {
+                let hl = self.registers.hl();
+                device.write(hl, self.res_b_n(0, device.read(self.registers.hl())))
+            }
+            0x87 => self.registers.a = self.res_b_n(0, self.registers.a),
+
+            // RES 1,n
+            0x88 => self.registers.b = self.res_b_n(1, self.registers.b),
+            0x89 => self.registers.c = self.res_b_n(1, self.registers.c),
+            0x8a => self.registers.d = self.res_b_n(1, self.registers.d),
+            0x8b => self.registers.e = self.res_b_n(1, self.registers.e),
+            0x8c => self.registers.h = self.res_b_n(1, self.registers.h),
+            0x8d => self.registers.l = self.res_b_n(1, self.registers.l),
+            0x8e => {
+                let hl = self.registers.hl();
+                device.write(hl, self.res_b_n(1, device.read(self.registers.hl())))
+            }
+            0x8f => self.registers.a = self.res_b_n(1, self.registers.a),
+
+            // RES 2,n
+            0x90 => self.registers.b = self.res_b_n(2, self.registers.b),
+            0x91 => self.registers.c = self.res_b_n(2, self.registers.c),
+            0x92 => self.registers.d = self.res_b_n(2, self.registers.d),
+            0x93 => self.registers.e = self.res_b_n(2, self.registers.e),
+            0x94 => self.registers.h = self.res_b_n(2, self.registers.h),
+            0x95 => self.registers.l = self.res_b_n(2, self.registers.l),
+            0x96 => {
+                let hl = self.registers.hl();
+                device.write(hl, self.res_b_n(2, device.read(self.registers.hl())))
+            }
+            0x97 => self.registers.a = self.res_b_n(2, self.registers.a),
+
+            // RES 3,n
+            0x98 => self.registers.b = self.res_b_n(3, self.registers.b),
+            0x99 => self.registers.c = self.res_b_n(3, self.registers.c),
+            0x9a => self.registers.d = self.res_b_n(3, self.registers.d),
+            0x9b => self.registers.e = self.res_b_n(3, self.registers.e),
+            0x9c => self.registers.h = self.res_b_n(3, self.registers.h),
+            0x9d => self.registers.l = self.res_b_n(3, self.registers.l),
+            0x9e => {
+                let hl = self.registers.hl();
+                device.write(hl, self.res_b_n(3, device.read(self.registers.hl())))
+            }
+            0x9f => self.registers.a = self.res_b_n(3, self.registers.a),
+
+            // RES 4,n
+            0xa0 => self.registers.b = self.res_b_n(4, self.registers.b),
+            0xa1 => self.registers.c = self.res_b_n(4, self.registers.c),
+            0xa2 => self.registers.d = self.res_b_n(4, self.registers.d),
+            0xa3 => self.registers.e = self.res_b_n(4, self.registers.e),
+            0xa4 => self.registers.h = self.res_b_n(4, self.registers.h),
+            0xa5 => self.registers.l = self.res_b_n(4, self.registers.l),
+            0xa6 => {
+                let hl = self.registers.hl();
+                device.write(hl, self.res_b_n(4, device.read(self.registers.hl())))
+            }
+            0xa7 => self.registers.a = self.res_b_n(4, self.registers.a),
+
+            // RES 5,n
+            0xa8 => self.registers.b = self.res_b_n(5, self.registers.b),
+            0xa9 => self.registers.c = self.res_b_n(5, self.registers.c),
+            0xaa => self.registers.d = self.res_b_n(5, self.registers.d),
+            0xab => self.registers.e = self.res_b_n(5, self.registers.e),
+            0xac => self.registers.h = self.res_b_n(5, self.registers.h),
+            0xad => self.registers.l = self.res_b_n(5, self.registers.l),
+            0xae => {
+                let hl = self.registers.hl();
+                device.write(hl, self.res_b_n(5, device.read(self.registers.hl())))
+            }
+            0xaf => self.registers.a = self.res_b_n(5, self.registers.a),
+
+            // RES 6,n
+            0xb0 => self.registers.b = self.res_b_n(6, self.registers.b),
+            0xb1 => self.registers.c = self.res_b_n(6, self.registers.c),
+            0xb2 => self.registers.d = self.res_b_n(6, self.registers.d),
+            0xb3 => self.registers.e = self.res_b_n(6, self.registers.e),
+            0xb4 => self.registers.h = self.res_b_n(6, self.registers.h),
+            0xb5 => self.registers.l = self.res_b_n(6, self.registers.l),
+            0xb6 => {
+                let hl = self.registers.hl();
+                device.write(hl, self.res_b_n(6, device.read(self.registers.hl())))
+            }
+            0xb7 => self.registers.a = self.res_b_n(6, self.registers.a),
+
+            // RES 7,n
+            0xb8 => self.registers.b = self.res_b_n(7, self.registers.b),
+            0xb9 => self.registers.c = self.res_b_n(7, self.registers.c),
+            0xba => self.registers.d = self.res_b_n(7, self.registers.d),
+            0xbb => self.registers.e = self.res_b_n(7, self.registers.e),
+            0xbc => self.registers.h = self.res_b_n(7, self.registers.h),
+            0xbd => self.registers.l = self.res_b_n(7, self.registers.l),
+            0xbe => {
+                let hl = self.registers.hl();
+                device.write(hl, self.res_b_n(7, device.read(self.registers.hl())))
+            }
+            0xbf => self.registers.a = self.res_b_n(7, self.registers.a),
+
+            // SET 0,n
+            0xc0 => self.registers.b = self.set_b_n(0, self.registers.b),
+            0xc1 => self.registers.c = self.set_b_n(0, self.registers.c),
+            0xc2 => self.registers.d = self.set_b_n(0, self.registers.d),
+            0xc3 => self.registers.e = self.set_b_n(0, self.registers.e),
+            0xc4 => self.registers.h = self.set_b_n(0, self.registers.h),
+            0xc5 => self.registers.l = self.set_b_n(0, self.registers.l),
+            0xc6 => {
+                let hl = self.registers.hl();
+                device.write(hl, self.set_b_n(0, device.read(self.registers.hl())))
+            }
+            0xc7 => self.registers.a = self.set_b_n(0, self.registers.a),
+
+            // SET 1,n
+            0xc8 => self.registers.b = self.set_b_n(1, self.registers.b),
+            0xc9 => self.registers.c = self.set_b_n(1, self.registers.c),
+            0xca => self.registers.d = self.set_b_n(1, self.registers.d),
+            0xcb => self.registers.e = self.set_b_n(1, self.registers.e),
+            0xcc => self.registers.h = self.set_b_n(1, self.registers.h),
+            0xcd => self.registers.l = self.set_b_n(1, self.registers.l),
+            0xce => {
+                let hl = self.registers.hl();
+                device.write(hl, self.set_b_n(1, device.read(self.registers.hl())))
+            }
+            0xcf => self.registers.a = self.set_b_n(1, self.registers.a),
+
+            // SET 2,n
+            0xd0 => self.registers.b = self.set_b_n(2, self.registers.b),
+            0xd1 => self.registers.c = self.set_b_n(2, self.registers.c),
+            0xd2 => self.registers.d = self.set_b_n(2, self.registers.d),
+            0xd3 => self.registers.e = self.set_b_n(2, self.registers.e),
+            0xd4 => self.registers.h = self.set_b_n(2, self.registers.h),
+            0xd5 => self.registers.l = self.set_b_n(2, self.registers.l),
+            0xd6 => {
+                let hl = self.registers.hl();
+                device.write(hl, self.set_b_n(2, device.read(self.registers.hl())))
+            }
+            0xd7 => self.registers.a = self.set_b_n(2, self.registers.a),
+
+            // SET 3,n
+            0xd8 => self.registers.b = self.set_b_n(3, self.registers.b),
+            0xd9 => self.registers.c = self.set_b_n(3, self.registers.c),
+            0xda => self.registers.d = self.set_b_n(3, self.registers.d),
+            0xdb => self.registers.e = self.set_b_n(3, self.registers.e),
+            0xdc => self.registers.h = self.set_b_n(3, self.registers.h),
+            0xdd => self.registers.l = self.set_b_n(3, self.registers.l),
+            0xde => {
+                let hl = self.registers.hl();
+                device.write(hl, self.set_b_n(3, device.read(self.registers.hl())))
+            }
+            0xdf => self.registers.a = self.set_b_n(3, self.registers.a),
+
+            // SET 4,n
+            0xe0 => self.registers.b = self.set_b_n(4, self.registers.b),
+            0xe1 => self.registers.c = self.set_b_n(4, self.registers.c),
+            0xe2 => self.registers.d = self.set_b_n(4, self.registers.d),
+            0xe3 => self.registers.e = self.set_b_n(4, self.registers.e),
+            0xe4 => self.registers.h = self.set_b_n(4, self.registers.h),
+            0xe5 => self.registers.l = self.set_b_n(4, self.registers.l),
+            0xe6 => {
+                let hl = self.registers.hl();
+                device.write(hl, self.set_b_n(4, device.read(self.registers.hl())))
+            }
+            0xe7 => self.registers.a = self.set_b_n(4, self.registers.a),
+
+            // SET 5,n
+            0xe8 => self.registers.b = self.set_b_n(5, self.registers.b),
+            0xe9 => self.registers.c = self.set_b_n(5, self.registers.c),
+            0xea => self.registers.d = self.set_b_n(5, self.registers.d),
+            0xeb => self.registers.e = self.set_b_n(5, self.registers.e),
+            0xec => self.registers.h = self.set_b_n(5, self.registers.h),
+            0xed => self.registers.l = self.set_b_n(5, self.registers.l),
+            0xee => {
+                let hl = self.registers.hl();
+                device.write(hl, self.set_b_n(5, device.read(self.registers.hl())))
+            }
+            0xef => self.registers.a = self.set_b_n(5, self.registers.a),
+
+            // SET 6,n
+            0xf0 => self.registers.b = self.set_b_n(6, self.registers.b),
+            0xf1 => self.registers.c = self.set_b_n(6, self.registers.c),
+            0xf2 => self.registers.d = self.set_b_n(6, self.registers.d),
+            0xf3 => self.registers.e = self.set_b_n(6, self.registers.e),
+            0xf4 => self.registers.h = self.set_b_n(6, self.registers.h),
+            0xf5 => self.registers.l = self.set_b_n(6, self.registers.l),
+            0xf6 => {
+                let hl = self.registers.hl();
+                device.write(hl, self.set_b_n(6, device.read(self.registers.hl())))
+            }
+            0xf7 => self.registers.a = self.set_b_n(6, self.registers.a),
+
+            // SET 7,n
+            0xf8 => self.registers.b = self.set_b_n(7, self.registers.b),
+            0xf9 => self.registers.c = self.set_b_n(7, self.registers.c),
+            0xfa => self.registers.d = self.set_b_n(7, self.registers.d),
+            0xfb => self.registers.e = self.set_b_n(7, self.registers.e),
+            0xfc => self.registers.h = self.set_b_n(7, self.registers.h),
+            0xfd => self.registers.l = self.set_b_n(7, self.registers.l),
+            0xfe => {
+                let hl = self.registers.hl();
+                device.write(hl, self.set_b_n(7, device.read(self.registers.hl())))
+            }
+            0xff => self.registers.a = self.set_b_n(7, self.registers.a),
+
+            // SRL n
+            0x38 => self.registers.b = self.srl_n(self.registers.b),
+            0x39 => self.registers.c = self.srl_n(self.registers.c),
+            0x3a => self.registers.d = self.srl_n(self.registers.d),
+            0x3b => self.registers.e = self.srl_n(self.registers.e),
+            0x3c => self.registers.h = self.srl_n(self.registers.h),
+            0x3d => self.registers.l = self.srl_n(self.registers.l),
+            0x3e => {
+                let hl = self.registers.hl();
+                device.write(hl, self.srl_n(device.read(self.registers.hl())))
+            }
+            0x3f => self.registers.a = self.srl_n(self.registers.a),
+
+            // SLA n
+            0x20 => self.registers.b = self.sla_n(self.registers.b),
+            0x21 => self.registers.c = self.sla_n(self.registers.c),
+            0x22 => self.registers.d = self.sla_n(self.registers.d),
+            0x23 => self.registers.e = self.sla_n(self.registers.e),
+            0x24 => self.registers.h = self.sla_n(self.registers.h),
+            0x25 => self.registers.l = self.sla_n(self.registers.l),
+            0x26 => {
+                let hl = self.registers.hl();
+                device.write(hl, self.sla_n(device.read(self.registers.hl())))
+            }
+            0x27 => self.registers.a = self.sla_n(self.registers.a),
+
+            // SRA n
+            0x28 => self.registers.b = self.sra_n(self.registers.b),
+            0x29 => self.registers.c = self.sra_n(self.registers.c),
+            0x2a => self.registers.d = self.sra_n(self.registers.d),
+            0x2b => self.registers.e = self.sra_n(self.registers.e),
+            0x2c => self.registers.h = self.sra_n(self.registers.h),
+            0x2d => self.registers.l = self.sra_n(self.registers.l),
+            0x2e => {
+                let hl = self.registers.hl();
+                device.write(hl, self.sra_n(device.read(self.registers.hl())))
+            }
+            0x2f => self.registers.a = self.sra_n(self.registers.a),
+        }
+
+        4
+    }
+
     fn exec<D: Device>(&mut self, device: &mut D) -> u64 {
+        info!("Program Counter (PC): {:#04x}", self.registers.pc);
+
         let opcode = self.fetch(device);
         let mut branch = false;
+
+        info!("Fetched opcode: {:#02x}", opcode);
 
         match opcode {
             // ADD A,n
@@ -551,402 +960,9 @@ impl CPU {
             0x76 => self.halt = true,
             0xf3 => self.ime = false,
             0xfb => self.ime = true,
-            0xcb => {
-                let cb = self.fetch(device);
-                match cb {
-                    // RLC n
-                    0x00 => self.registers.b = self.rlc_n(self.registers.b),
-                    0x01 => self.registers.c = self.rlc_n(self.registers.c),
-                    0x02 => self.registers.d = self.rlc_n(self.registers.d),
-                    0x03 => self.registers.e = self.rlc_n(self.registers.e),
-                    0x04 => self.registers.h = self.rlc_n(self.registers.h),
-                    0x05 => self.registers.l = self.rlc_n(self.registers.l),
-                    0x06 => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.rlc_n(device.read(hl)))
-                    }
-                    0x07 => self.registers.a = self.rlc_n(self.registers.a),
 
-                    // RRC n
-                    0x08 => self.registers.b = self.rrc_n(self.registers.b),
-                    0x09 => self.registers.c = self.rrc_n(self.registers.c),
-                    0x0a => self.registers.d = self.rrc_n(self.registers.d),
-                    0x0b => self.registers.e = self.rrc_n(self.registers.e),
-                    0x0c => self.registers.h = self.rrc_n(self.registers.h),
-                    0x0d => self.registers.l = self.rrc_n(self.registers.l),
-                    0x0e => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.rrc_n(device.read(hl)))
-                    }
-                    0x0f => self.registers.a = self.rrc_n(self.registers.a),
-
-                    // RL n
-                    0x10 => self.registers.b = self.rl_n(self.registers.b),
-                    0x11 => self.registers.c = self.rl_n(self.registers.c),
-                    0x12 => self.registers.d = self.rl_n(self.registers.d),
-                    0x13 => self.registers.e = self.rl_n(self.registers.e),
-                    0x14 => self.registers.h = self.rl_n(self.registers.h),
-                    0x15 => self.registers.l = self.rl_n(self.registers.l),
-                    0x16 => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.rl_n(device.read(hl)))
-                    }
-                    0x17 => self.registers.a = self.rl_n(self.registers.a),
-
-                    // RR n
-                    0x18 => self.registers.b = self.rr_n(self.registers.b),
-                    0x19 => self.registers.c = self.rr_n(self.registers.c),
-                    0x1a => self.registers.d = self.rr_n(self.registers.d),
-                    0x1b => self.registers.e = self.rr_n(self.registers.e),
-                    0x1c => self.registers.h = self.rr_n(self.registers.h),
-                    0x1d => self.registers.l = self.rr_n(self.registers.l),
-                    0x1e => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.rr_n(device.read(hl)))
-                    }
-                    0x1f => self.registers.a = self.rr_n(self.registers.a),
-
-                    // SWAP n
-                    0x30 => self.registers.b = self.swap_n(self.registers.b),
-                    0x31 => self.registers.c = self.swap_n(self.registers.c),
-                    0x32 => self.registers.d = self.swap_n(self.registers.d),
-                    0x33 => self.registers.e = self.swap_n(self.registers.e),
-                    0x34 => self.registers.h = self.swap_n(self.registers.h),
-                    0x35 => self.registers.l = self.swap_n(self.registers.l),
-                    0x36 => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.swap_n(device.read(hl)))
-                    }
-                    0x37 => self.registers.a = self.swap_n(self.registers.a),
-
-                    // BIT 0,n
-                    0x40 => self.bit_b_n(0, self.registers.b),
-                    0x41 => self.bit_b_n(0, self.registers.c),
-                    0x42 => self.bit_b_n(0, self.registers.d),
-                    0x43 => self.bit_b_n(0, self.registers.e),
-                    0x44 => self.bit_b_n(0, self.registers.h),
-                    0x45 => self.bit_b_n(0, self.registers.l),
-                    0x46 => self.bit_b_n(0, device.read(self.registers.hl())),
-                    0x47 => self.bit_b_n(0, self.registers.a),
-
-                    // BIT 1,n
-                    0x48 => self.bit_b_n(1, self.registers.b),
-                    0x49 => self.bit_b_n(1, self.registers.c),
-                    0x4a => self.bit_b_n(1, self.registers.d),
-                    0x4b => self.bit_b_n(1, self.registers.e),
-                    0x4c => self.bit_b_n(1, self.registers.h),
-                    0x4d => self.bit_b_n(1, self.registers.l),
-                    0x4e => self.bit_b_n(1, device.read(self.registers.hl())),
-                    0x4f => self.bit_b_n(1, self.registers.a),
-
-                    // BIT 2,n
-                    0x50 => self.bit_b_n(2, self.registers.b),
-                    0x51 => self.bit_b_n(2, self.registers.c),
-                    0x52 => self.bit_b_n(2, self.registers.d),
-                    0x53 => self.bit_b_n(2, self.registers.e),
-                    0x54 => self.bit_b_n(2, self.registers.h),
-                    0x55 => self.bit_b_n(2, self.registers.l),
-                    0x56 => self.bit_b_n(2, device.read(self.registers.hl())),
-                    0x57 => self.bit_b_n(2, self.registers.a),
-
-                    // BIT 3,n
-                    0x58 => self.bit_b_n(3, self.registers.b),
-                    0x59 => self.bit_b_n(3, self.registers.c),
-                    0x5a => self.bit_b_n(3, self.registers.d),
-                    0x5b => self.bit_b_n(3, self.registers.e),
-                    0x5c => self.bit_b_n(3, self.registers.h),
-                    0x5d => self.bit_b_n(3, self.registers.l),
-                    0x5e => self.bit_b_n(3, device.read(self.registers.hl())),
-                    0x5f => self.bit_b_n(3, self.registers.a),
-
-                    // BIT 4,n
-                    0x60 => self.bit_b_n(4, self.registers.b),
-                    0x61 => self.bit_b_n(4, self.registers.c),
-                    0x62 => self.bit_b_n(4, self.registers.d),
-                    0x63 => self.bit_b_n(4, self.registers.e),
-                    0x64 => self.bit_b_n(4, self.registers.h),
-                    0x65 => self.bit_b_n(4, self.registers.l),
-                    0x66 => self.bit_b_n(4, device.read(self.registers.hl())),
-                    0x67 => self.bit_b_n(4, self.registers.a),
-
-                    // BIT 5,n
-                    0x68 => self.bit_b_n(5, self.registers.b),
-                    0x69 => self.bit_b_n(5, self.registers.c),
-                    0x6a => self.bit_b_n(5, self.registers.d),
-                    0x6b => self.bit_b_n(5, self.registers.e),
-                    0x6c => self.bit_b_n(5, self.registers.h),
-                    0x6d => self.bit_b_n(5, self.registers.l),
-                    0x6e => self.bit_b_n(5, device.read(self.registers.hl())),
-                    0x6f => self.bit_b_n(5, self.registers.a),
-
-                    // BIT 6,n
-                    0x70 => self.bit_b_n(6, self.registers.b),
-                    0x71 => self.bit_b_n(6, self.registers.c),
-                    0x72 => self.bit_b_n(6, self.registers.d),
-                    0x73 => self.bit_b_n(6, self.registers.e),
-                    0x74 => self.bit_b_n(6, self.registers.h),
-                    0x75 => self.bit_b_n(6, self.registers.l),
-                    0x76 => self.bit_b_n(6, device.read(self.registers.hl())),
-                    0x77 => self.bit_b_n(6, self.registers.a),
-
-                    // BIT 7,n
-                    0x78 => self.bit_b_n(7, self.registers.b),
-                    0x79 => self.bit_b_n(7, self.registers.c),
-                    0x7a => self.bit_b_n(7, self.registers.d),
-                    0x7b => self.bit_b_n(7, self.registers.e),
-                    0x7c => self.bit_b_n(7, self.registers.h),
-                    0x7d => self.bit_b_n(7, self.registers.l),
-                    0x7e => self.bit_b_n(7, device.read(self.registers.hl())),
-                    0x7f => self.bit_b_n(7, self.registers.a),
-
-                    // RES 0,n
-                    0x80 => self.registers.b = self.res_b_n(0, self.registers.b),
-                    0x81 => self.registers.c = self.res_b_n(0, self.registers.c),
-                    0x82 => self.registers.d = self.res_b_n(0, self.registers.d),
-                    0x83 => self.registers.e = self.res_b_n(0, self.registers.e),
-                    0x84 => self.registers.h = self.res_b_n(0, self.registers.h),
-                    0x85 => self.registers.l = self.res_b_n(0, self.registers.l),
-                    0x86 => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.res_b_n(0, device.read(self.registers.hl())))
-                    }
-                    0x87 => self.registers.a = self.res_b_n(0, self.registers.a),
-
-                    // RES 1,n
-                    0x88 => self.registers.b = self.res_b_n(1, self.registers.b),
-                    0x89 => self.registers.c = self.res_b_n(1, self.registers.c),
-                    0x8a => self.registers.d = self.res_b_n(1, self.registers.d),
-                    0x8b => self.registers.e = self.res_b_n(1, self.registers.e),
-                    0x8c => self.registers.h = self.res_b_n(1, self.registers.h),
-                    0x8d => self.registers.l = self.res_b_n(1, self.registers.l),
-                    0x8e => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.res_b_n(1, device.read(self.registers.hl())))
-                    }
-                    0x8f => self.registers.a = self.res_b_n(1, self.registers.a),
-
-                    // RES 2,n
-                    0x90 => self.registers.b = self.res_b_n(2, self.registers.b),
-                    0x91 => self.registers.c = self.res_b_n(2, self.registers.c),
-                    0x92 => self.registers.d = self.res_b_n(2, self.registers.d),
-                    0x93 => self.registers.e = self.res_b_n(2, self.registers.e),
-                    0x94 => self.registers.h = self.res_b_n(2, self.registers.h),
-                    0x95 => self.registers.l = self.res_b_n(2, self.registers.l),
-                    0x96 => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.res_b_n(2, device.read(self.registers.hl())))
-                    }
-                    0x97 => self.registers.a = self.res_b_n(2, self.registers.a),
-
-                    // RES 3,n
-                    0x98 => self.registers.b = self.res_b_n(3, self.registers.b),
-                    0x99 => self.registers.c = self.res_b_n(3, self.registers.c),
-                    0x9a => self.registers.d = self.res_b_n(3, self.registers.d),
-                    0x9b => self.registers.e = self.res_b_n(3, self.registers.e),
-                    0x9c => self.registers.h = self.res_b_n(3, self.registers.h),
-                    0x9d => self.registers.l = self.res_b_n(3, self.registers.l),
-                    0x9e => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.res_b_n(3, device.read(self.registers.hl())))
-                    }
-                    0x9f => self.registers.a = self.res_b_n(3, self.registers.a),
-
-                    // RES 4,n
-                    0xa0 => self.registers.b = self.res_b_n(4, self.registers.b),
-                    0xa1 => self.registers.c = self.res_b_n(4, self.registers.c),
-                    0xa2 => self.registers.d = self.res_b_n(4, self.registers.d),
-                    0xa3 => self.registers.e = self.res_b_n(4, self.registers.e),
-                    0xa4 => self.registers.h = self.res_b_n(4, self.registers.h),
-                    0xa5 => self.registers.l = self.res_b_n(4, self.registers.l),
-                    0xa6 => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.res_b_n(4, device.read(self.registers.hl())))
-                    }
-                    0xa7 => self.registers.a = self.res_b_n(4, self.registers.a),
-
-                    // RES 5,n
-                    0xa8 => self.registers.b = self.res_b_n(5, self.registers.b),
-                    0xa9 => self.registers.c = self.res_b_n(5, self.registers.c),
-                    0xaa => self.registers.d = self.res_b_n(5, self.registers.d),
-                    0xab => self.registers.e = self.res_b_n(5, self.registers.e),
-                    0xac => self.registers.h = self.res_b_n(5, self.registers.h),
-                    0xad => self.registers.l = self.res_b_n(5, self.registers.l),
-                    0xae => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.res_b_n(5, device.read(self.registers.hl())))
-                    }
-                    0xaf => self.registers.a = self.res_b_n(5, self.registers.a),
-
-                    // RES 6,n
-                    0xb0 => self.registers.b = self.res_b_n(6, self.registers.b),
-                    0xb1 => self.registers.c = self.res_b_n(6, self.registers.c),
-                    0xb2 => self.registers.d = self.res_b_n(6, self.registers.d),
-                    0xb3 => self.registers.e = self.res_b_n(6, self.registers.e),
-                    0xb4 => self.registers.h = self.res_b_n(6, self.registers.h),
-                    0xb5 => self.registers.l = self.res_b_n(6, self.registers.l),
-                    0xb6 => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.res_b_n(6, device.read(self.registers.hl())))
-                    }
-                    0xb7 => self.registers.a = self.res_b_n(6, self.registers.a),
-
-                    // RES 7,n
-                    0xb8 => self.registers.b = self.res_b_n(7, self.registers.b),
-                    0xb9 => self.registers.c = self.res_b_n(7, self.registers.c),
-                    0xba => self.registers.d = self.res_b_n(7, self.registers.d),
-                    0xbb => self.registers.e = self.res_b_n(7, self.registers.e),
-                    0xbc => self.registers.h = self.res_b_n(7, self.registers.h),
-                    0xbd => self.registers.l = self.res_b_n(7, self.registers.l),
-                    0xbe => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.res_b_n(7, device.read(self.registers.hl())))
-                    }
-                    0xbf => self.registers.a = self.res_b_n(7, self.registers.a),
-
-                    // SET 0,n
-                    0xc0 => self.registers.b = self.set_b_n(0, self.registers.b),
-                    0xc1 => self.registers.c = self.set_b_n(0, self.registers.c),
-                    0xc2 => self.registers.d = self.set_b_n(0, self.registers.d),
-                    0xc3 => self.registers.e = self.set_b_n(0, self.registers.e),
-                    0xc4 => self.registers.h = self.set_b_n(0, self.registers.h),
-                    0xc5 => self.registers.l = self.set_b_n(0, self.registers.l),
-                    0xc6 => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.set_b_n(0, device.read(self.registers.hl())))
-                    }
-                    0xc7 => self.registers.a = self.set_b_n(0, self.registers.a),
-
-                    // SET 1,n
-                    0xc8 => self.registers.b = self.set_b_n(1, self.registers.b),
-                    0xc9 => self.registers.c = self.set_b_n(1, self.registers.c),
-                    0xca => self.registers.d = self.set_b_n(1, self.registers.d),
-                    0xcb => self.registers.e = self.set_b_n(1, self.registers.e),
-                    0xcc => self.registers.h = self.set_b_n(1, self.registers.h),
-                    0xcd => self.registers.l = self.set_b_n(1, self.registers.l),
-                    0xce => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.set_b_n(1, device.read(self.registers.hl())))
-                    }
-                    0xcf => self.registers.a = self.set_b_n(1, self.registers.a),
-
-                    // SET 2,n
-                    0xd0 => self.registers.b = self.set_b_n(2, self.registers.b),
-                    0xd1 => self.registers.c = self.set_b_n(2, self.registers.c),
-                    0xd2 => self.registers.d = self.set_b_n(2, self.registers.d),
-                    0xd3 => self.registers.e = self.set_b_n(2, self.registers.e),
-                    0xd4 => self.registers.h = self.set_b_n(2, self.registers.h),
-                    0xd5 => self.registers.l = self.set_b_n(2, self.registers.l),
-                    0xd6 => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.set_b_n(2, device.read(self.registers.hl())))
-                    }
-                    0xd7 => self.registers.a = self.set_b_n(2, self.registers.a),
-
-                    // SET 3,n
-                    0xd8 => self.registers.b = self.set_b_n(3, self.registers.b),
-                    0xd9 => self.registers.c = self.set_b_n(3, self.registers.c),
-                    0xda => self.registers.d = self.set_b_n(3, self.registers.d),
-                    0xdb => self.registers.e = self.set_b_n(3, self.registers.e),
-                    0xdc => self.registers.h = self.set_b_n(3, self.registers.h),
-                    0xdd => self.registers.l = self.set_b_n(3, self.registers.l),
-                    0xde => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.set_b_n(3, device.read(self.registers.hl())))
-                    }
-                    0xdf => self.registers.a = self.set_b_n(3, self.registers.a),
-
-                    // SET 4,n
-                    0xe0 => self.registers.b = self.set_b_n(4, self.registers.b),
-                    0xe1 => self.registers.c = self.set_b_n(4, self.registers.c),
-                    0xe2 => self.registers.d = self.set_b_n(4, self.registers.d),
-                    0xe3 => self.registers.e = self.set_b_n(4, self.registers.e),
-                    0xe4 => self.registers.h = self.set_b_n(4, self.registers.h),
-                    0xe5 => self.registers.l = self.set_b_n(4, self.registers.l),
-                    0xe6 => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.set_b_n(4, device.read(self.registers.hl())))
-                    }
-                    0xe7 => self.registers.a = self.set_b_n(4, self.registers.a),
-
-                    // SET 5,n
-                    0xe8 => self.registers.b = self.set_b_n(5, self.registers.b),
-                    0xe9 => self.registers.c = self.set_b_n(5, self.registers.c),
-                    0xea => self.registers.d = self.set_b_n(5, self.registers.d),
-                    0xeb => self.registers.e = self.set_b_n(5, self.registers.e),
-                    0xec => self.registers.h = self.set_b_n(5, self.registers.h),
-                    0xed => self.registers.l = self.set_b_n(5, self.registers.l),
-                    0xee => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.set_b_n(5, device.read(self.registers.hl())))
-                    }
-                    0xef => self.registers.a = self.set_b_n(5, self.registers.a),
-
-                    // SET 6,n
-                    0xf0 => self.registers.b = self.set_b_n(6, self.registers.b),
-                    0xf1 => self.registers.c = self.set_b_n(6, self.registers.c),
-                    0xf2 => self.registers.d = self.set_b_n(6, self.registers.d),
-                    0xf3 => self.registers.e = self.set_b_n(6, self.registers.e),
-                    0xf4 => self.registers.h = self.set_b_n(6, self.registers.h),
-                    0xf5 => self.registers.l = self.set_b_n(6, self.registers.l),
-                    0xf6 => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.set_b_n(6, device.read(self.registers.hl())))
-                    }
-                    0xf7 => self.registers.a = self.set_b_n(6, self.registers.a),
-
-                    // SET 7,n
-                    0xf8 => self.registers.b = self.set_b_n(7, self.registers.b),
-                    0xf9 => self.registers.c = self.set_b_n(7, self.registers.c),
-                    0xfa => self.registers.d = self.set_b_n(7, self.registers.d),
-                    0xfb => self.registers.e = self.set_b_n(7, self.registers.e),
-                    0xfc => self.registers.h = self.set_b_n(7, self.registers.h),
-                    0xfd => self.registers.l = self.set_b_n(7, self.registers.l),
-                    0xfe => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.set_b_n(7, device.read(self.registers.hl())))
-                    }
-                    0xff => self.registers.a = self.set_b_n(7, self.registers.a),
-
-                    // SRL n
-                    0x38 => self.registers.b = self.srl_n(self.registers.b),
-                    0x39 => self.registers.c = self.srl_n(self.registers.c),
-                    0x3a => self.registers.d = self.srl_n(self.registers.d),
-                    0x3b => self.registers.e = self.srl_n(self.registers.e),
-                    0x3c => self.registers.h = self.srl_n(self.registers.h),
-                    0x3d => self.registers.l = self.srl_n(self.registers.l),
-                    0x3e => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.srl_n(device.read(self.registers.hl())))
-                    }
-                    0x3f => self.registers.a = self.srl_n(self.registers.a),
-
-                    // SLA n
-                    0x20 => self.registers.b = self.sla_n(self.registers.b),
-                    0x21 => self.registers.c = self.sla_n(self.registers.c),
-                    0x22 => self.registers.d = self.sla_n(self.registers.d),
-                    0x23 => self.registers.e = self.sla_n(self.registers.e),
-                    0x24 => self.registers.h = self.sla_n(self.registers.h),
-                    0x25 => self.registers.l = self.sla_n(self.registers.l),
-                    0x26 => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.sla_n(device.read(self.registers.hl())))
-                    }
-                    0x27 => self.registers.a = self.sla_n(self.registers.a),
-
-                    // SRA n
-                    0x28 => self.registers.b = self.sra_n(self.registers.b),
-                    0x29 => self.registers.c = self.sra_n(self.registers.c),
-                    0x2a => self.registers.d = self.sra_n(self.registers.d),
-                    0x2b => self.registers.e = self.sra_n(self.registers.e),
-                    0x2c => self.registers.h = self.sra_n(self.registers.h),
-                    0x2d => self.registers.l = self.sra_n(self.registers.l),
-                    0x2e => {
-                        let hl = self.registers.hl();
-                        device.write(hl, self.sra_n(device.read(self.registers.hl())))
-                    }
-                    0x2f => self.registers.a = self.sra_n(self.registers.a),
-                }
-            }
+            // run CB opcode
+            0xcb => return self.exec_cb(device),
 
             0xd3 | 0xdb | 0xdd | 0xe3 | 0xe4 | 0xeb..=0xed | 0xf4 | 0xfc | 0xfd => {
                 panic!("Unknown opcode: {:#02x}", opcode)

@@ -5,6 +5,7 @@ use log::{error, info};
 use serde::{Deserialize, Serialize};
 
 pub type Address = u16;
+pub type Data = u8;
 
 // returned for invalid memory accesses
 // panics on release builds
@@ -24,7 +25,7 @@ pub(crate) fn invalid_write(address: Address) {
     panic!();
 }
 
-/// Adds logging (using the log crate) to trace reads and writes.
+// Adds logging (using the log crate) to trace reads and writes.
 #[derive(Default, Debug, Clone, Eq, PartialEq, Hash, Educe)]
 #[educe(Deref, DerefMut)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -44,11 +45,7 @@ impl<D: Device> Device for LogDevice<D> {
     }
 }
 
-/// Read from device.
-///
-/// Unlike when using the trait method directly, this method will use the log
-/// crate to add info logs.
-pub fn read<D: Device>(device: &D, address: Address) -> u8 {
+fn read<D: Device>(device: &D, address: Address) -> u8 {
     info!(
         "Reading from device ({}): {:#04x}",
         D::debug_name(),
@@ -59,17 +56,12 @@ pub fn read<D: Device>(device: &D, address: Address) -> u8 {
     data
 }
 
-/// Write data to device
-///
-/// Unlike when using the trait method directly, this method will use the log
-/// crate to add info logs.
-pub fn write<D: Device>(device: &mut D, address: Address, data: u8) {
+fn write<D: Device>(device: &mut D, address: Address, data: u8) {
     #[rustfmt::skip]
     info!("Writing {:#02x} to device ({}): {:#04x}", data, D::debug_name(), address);
     device.write(address, data);
 }
 
-/// Memory-mapped device you can read & write bytes from and to.
 pub trait Device {
     fn debug_name() -> &'static str;
 
@@ -77,7 +69,7 @@ pub trait Device {
     fn read(&self, address: Address) -> u8;
 
     /// Write byte.
-    fn write(&mut self, address: Address, data: u8);
+    fn write(&mut self, address: Address, data: Data);
 
     /// Read a word.
     fn read_word(&self, address: Address) -> u16 {

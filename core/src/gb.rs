@@ -21,6 +21,8 @@ use serde::{Deserialize, Serialize};
 /// // mario jump :)
 /// gb.joypad_mut().press(&Button::Right);
 /// gb.joypad_mut().press(&Button::A);
+///
+/// let lcd = gb.ppu().display();
 /// ```
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct GameBoy<C> {
@@ -40,11 +42,11 @@ impl<C> GameBoy<C> {
     }
 
     pub fn cpu(&self) -> &CPU {
-        &self.emulator.cpu
+        self.emulator.cpu.as_ref().unwrap()
     }
 
     pub fn cpu_mut(&mut self) -> &mut CPU {
-        &mut self.emulator.cpu
+        self.emulator.cpu.as_mut().unwrap()
     }
 
     pub fn ppu(&self) -> &PPU {
@@ -70,8 +72,16 @@ impl<C: Cartridge> GameBoy<C> {
         }
     }
 
+    /// Update emulator.
+    pub fn update(&mut self) {
+        // run for roughly 1/60 seconds
+        for _ in 0..super::CLOCK / 60 {
+            self.emulator.update();
+        }
+    }
+
     fn boot_cpu(&mut self) {
-        let cpu = &mut self.emulator.cpu;
+        let cpu = self.emulator.cpu.as_mut().unwrap();
 
         cpu.registers_mut().set_af(0x01b0);
         cpu.registers_mut().set_bc(0x0013);
@@ -120,6 +130,10 @@ impl<C: Cartridge> GameBoy<C> {
 }
 
 impl<C: Cartridge> Device for GameBoy<C> {
+    fn debug_name() -> &'static str {
+        "GameBoy"
+    }
+
     fn read(&self, address: u16) -> u8 {
         self.emulator.read(address)
     }

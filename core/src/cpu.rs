@@ -23,16 +23,21 @@ impl CPU {
         &mut self.registers
     }
 
-    pub fn update<D: Device>(&mut self, device: &mut D) -> u64 {
-        let int = self.int(device);
+    pub(super) fn update<D: Device>(&mut self, device: &mut D) -> u64 {
+        info!("Begin CPU update");
 
-        if int != 0 {
+        let int = self.int(device);
+        let cycles = if int != 0 {
             int
         } else if !self.halt {
             self.exec(device)
         } else {
             4
-        }
+        };
+
+        info!("End CPU update");
+
+        cycles
     }
 
     fn int<D: Device>(&mut self, device: &mut D) -> u64 {

@@ -20,6 +20,10 @@ impl Default for VideoRAM {
 }
 
 impl Device for VideoRAM {
+    fn debug_name() -> &'static str {
+        "Video RAM"
+    }
+
     fn read(&self, address: u16) -> u8 {
         match address {
             0x8000..=0x9fff => self.data[address as usize - OFFSET],

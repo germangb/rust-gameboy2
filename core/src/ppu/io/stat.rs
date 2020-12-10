@@ -44,6 +44,10 @@ impl Update for STAT {
 }
 
 impl Device for STAT {
+    fn debug_name() -> &'static str {
+        "STAT"
+    }
+
     fn read(&self, address: u16) -> u8 {
         if address != 0xff41 {
             invalid_read(address);

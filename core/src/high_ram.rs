@@ -20,6 +20,10 @@ impl Default for HighRAM {
 }
 
 impl Device for HighRAM {
+    fn debug_name() -> &'static str {
+        "High Ram"
+    }
+
     fn read(&self, address: u16) -> u8 {
         match address {
             0xff80..=0xfffe => self.data[address as usize - OFFSET],

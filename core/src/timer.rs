@@ -65,8 +65,8 @@ impl Update for Timer {
 }
 
 impl Device for Timer {
-    fn debug_name() -> Option<&'static str> {
-        Some("Timer")
+    fn debug_name() -> &'static str {
+        "Timer"
     }
 
     fn read(&self, address: u16) -> u8 {

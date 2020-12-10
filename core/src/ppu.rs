@@ -3,7 +3,7 @@ use crate::{
     ppu::{
         io::{lcdc::LCDC, stat::STAT},
         lcd::LcdBuffer,
-        oam::OamTable,
+        oam::OAMTable,
         video_ram::VideoRAM,
     },
     EmulationStep, Update,
@@ -13,23 +13,24 @@ use serde::{Deserialize, Serialize};
 
 mod io;
 pub mod lcd;
-pub mod oam;
-pub mod video_ram;
+mod oam;
+mod video_ram;
 
 #[derive(Default, Debug, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PPU {
     #[cfg_attr(feature = "serde", serde(skip))]
     buffer: Box<LcdBuffer>,
-    oam_table: OamTable,
+    oam_table: OAMTable,
     video_ram: VideoRAM,
     lcdc: LCDC,
     stat: STAT,
 }
 
 impl PPU {
-    pub fn buffer(&self) -> &LcdBuffer {
-        &self.buffer
+    /// Returns current state of the display.
+    pub fn display(&self) -> &[lcd::Pixel; lcd::WIDTH * lcd::HEIGHT] {
+        &self.buffer.0
     }
 }
 
@@ -40,8 +41,8 @@ impl Update for PPU {
 }
 
 impl Device for PPU {
-    fn debug_name() -> Option<&'static str> {
-        Some("Pixel Processing Unit")
+    fn debug_name() -> &'static str {
+        "Pixel Processing Unit"
     }
 
     fn read(&self, address: u16) -> u8 {

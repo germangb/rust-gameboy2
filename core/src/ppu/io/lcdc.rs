@@ -29,6 +29,10 @@ impl LCDC {
 }
 
 impl Device for LCDC {
+    fn debug_name() -> &'static str {
+        "LCDC"
+    }
+
     fn read(&self, address: u16) -> u8 {
         if address != 0xff40 {
             invalid_read(address);

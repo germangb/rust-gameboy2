@@ -36,8 +36,8 @@ impl Update for OamDma {
 }
 
 impl Device for OamDma {
-    fn debug_name() -> Option<&'static str> {
-        Some("OAM DMA Transfer")
+    fn debug_name() -> &'static str {
+        "OAM DMA Transfer"
     }
 
     fn read(&self, address: u16) -> u8 {

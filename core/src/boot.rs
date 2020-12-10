@@ -24,8 +24,8 @@ impl Boot {
 }
 
 impl Device for Boot {
-    fn debug_name() -> Option<&'static str> {
-        Some("Boot")
+    fn debug_name() -> &'static str {
+        "Boot"
     }
 
     fn read(&self, address: u16) -> u8 {

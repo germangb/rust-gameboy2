@@ -31,16 +31,16 @@ pub(crate) fn invalid_write(address: Address) {
 pub(crate) struct LogDevice<D>(#[educe(Deref, DerefMut)] pub D);
 
 impl<D: Device> Device for LogDevice<D> {
-    fn debug_name() -> Option<&'static str> {
+    fn debug_name() -> &'static str {
         D::debug_name()
     }
 
     fn read(&self, address: u16) -> u8 {
-        read(self, address)
+        read(&self.0, address)
     }
 
     fn write(&mut self, address: u16, data: u8) {
-        write(self, address, data)
+        write(&mut self.0, address, data)
     }
 }
 
@@ -50,7 +50,7 @@ impl<D: Device> Device for LogDevice<D> {
 /// crate to add info logs.
 pub fn read<D: Device>(device: &D, address: Address) -> u8 {
     info!(
-        "Reading from device (name = {:?}): {:#04x}",
+        "Reading from device ({}): {:#04x}",
         D::debug_name(),
         address
     );
@@ -65,15 +65,13 @@ pub fn read<D: Device>(device: &D, address: Address) -> u8 {
 /// crate to add info logs.
 pub fn write<D: Device>(device: &mut D, address: Address, data: u8) {
     #[rustfmt::skip]
-    info!("Writing {:#02x} to device (name = {:?}): {:#04x}", data, D::debug_name(), address);
+    info!("Writing {:#02x} to device ({}): {:#04x}", data, D::debug_name(), address);
     device.write(address, data);
 }
 
 /// Memory-mapped device you can read & write bytes from and to.
 pub trait Device {
-    fn debug_name() -> Option<&'static str> {
-        None
-    }
+    fn debug_name() -> &'static str;
 
     /// Read byte
     fn read(&self, address: Address) -> u8;
@@ -103,6 +101,10 @@ mod test {
     type TestDevice = Box<[u8; 0x10000]>;
 
     impl Device for TestDevice {
+        fn debug_name() -> &'static str {
+            "test"
+        }
+
         fn read(&self, address: u16) -> u8 {
             self[address as usize]
         }

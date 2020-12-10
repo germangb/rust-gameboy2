@@ -57,8 +57,8 @@ impl Joypad {
 }
 
 impl Device for Joypad {
-    fn debug_name() -> Option<&'static str> {
-        Some("Joypad")
+    fn debug_name() -> &'static str {
+        "Joypad"
     }
 
     fn read(&self, address: u16) -> u8 {

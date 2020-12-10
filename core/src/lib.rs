@@ -24,14 +24,15 @@ use crate::{
     dev::{Address, Device, LogDevice},
     dma::OamDma,
     high_ram::HighRAM,
+    irq::Irq,
     joypad::{Button, Joypad},
-    ppu::{lcd::LcdBuffer, PPU},
+    ppu::PPU,
     timer::Timer,
     work_ram::WorkRAM,
 };
 pub use gb::GameBoy;
 pub use gbc::GameBoyColor;
-use log::{error, warn};
+use log::{error, info, warn};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::cell::Cell;
@@ -44,6 +45,7 @@ mod dma;
 mod gb;
 mod gbc;
 mod high_ram;
+mod irq;
 pub mod joypad;
 pub mod ppu;
 mod timer;
@@ -65,7 +67,9 @@ trait Update {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 struct Emulator<C> {
     running: Cell<bool>,
-    cpu: CPU,
+    // borrow checker workaround
+    // cpu will be leaving the Option temporarily
+    cpu: Option<CPU>,
     cartridge: LogDevice<C>,
     boot: LogDevice<Boot>,
     oam_dma: LogDevice<OamDma>,
@@ -74,13 +78,14 @@ struct Emulator<C> {
     timer: LogDevice<Timer>,
     work_ram: LogDevice<WorkRAM>,
     high_ram: LogDevice<HighRAM>,
+    irq: LogDevice<Irq>,
 }
 
 impl<C> Emulator<C> {
     fn new(cartridge: C) -> Self {
         Self {
             running: Cell::new(true),
-            cpu: Default::default(),
+            cpu: Some(Default::default()),
             cartridge: LogDevice(cartridge),
             boot: Default::default(),
             oam_dma: Default::default(),
@@ -89,19 +94,31 @@ impl<C> Emulator<C> {
             timer: Default::default(),
             work_ram: Default::default(),
             high_ram: Default::default(),
+            irq: Default::default(),
         }
     }
 }
 
 impl<C: Cartridge> Emulator<C> {
     fn update(&mut self) {
+        info!("Begin emulator update");
+
         if self.running.get() {
-            let step = todo!();
+            let mut cpu = self.cpu.take().unwrap();
+            let cpu_step = cpu.update(self);
+            self.cpu = Some(cpu);
+            let step = EmulationStep {
+                clock_ticks: cpu_step,
+            };
 
             self.oam_dma.update(&step);
             self.ppu.update(&step);
             self.timer.update(&step);
+        } else {
+            warn!("Emulator is no longer running")
         }
+
+        info!("End of emulator update");
     }
 
     fn stop_running(&self) {
@@ -113,6 +130,7 @@ impl<C: Cartridge> Emulator<C> {
         match address {
             0xff00..=0xff02 => todo!("Port/Mode"),
             0xff04..=0xff07 => todo!("Port/Mode"),
+            0xff0f          => self.irq.read(address),
             0xff10..=0xff26 => todo!("Sound"),
             0xff30..=0xff3f => todo!("waveform RAM"),
             0xff40..=0xff45 => self.ppu.read(address),
@@ -131,6 +149,7 @@ impl<C: Cartridge> Emulator<C> {
         match address {
             0xff00..=0xff02 => todo!("Port/Mode"),
             0xff04..=0xff07 => todo!("Port/Mode"),
+            0xff0f          => self.irq.write(address, data),
             0xff10..=0xff26 => todo!("Sound"),
             0xff30..=0xff3f => todo!("waveform RAM"),
             0xff40..=0xff45 => self.ppu.write(address, data),
@@ -166,6 +185,10 @@ impl<C: Cartridge> Emulator<C> {
 }
 
 impl<C: Cartridge> Device for Emulator<C> {
+    fn debug_name() -> &'static str {
+        "Emulator"
+    }
+
     fn read(&self, address: u16) -> u8 {
         let oam_dma = self.oam_dma.is_active();
         let boot = self.boot.is_enabled();
@@ -175,7 +198,7 @@ impl<C: Cartridge> Device for Emulator<C> {
             0x0000..=0x7fff if !oam_dma => self.cartridge.read(address),
             0x8000..=0x9fff if !oam_dma => self.ppu.read(address),
             0xa000..=0xbfff if !oam_dma => self.cartridge.read(address),
-            0xc000..=0xdfff if !oam_dma => todo!("Work Ram"),
+            0xc000..=0xdfff if !oam_dma => self.work_ram.read(address),
             // Nintendo says use of this area is prohibited.
             0xe000..=0xfdff => {
                 warn!("Echo RAM");
@@ -196,7 +219,7 @@ impl<C: Cartridge> Device for Emulator<C> {
             0xfea0..=0xfeff => 0xff,
             0xff00..=0xff7f if !oam_dma => self.read_io(address),
             0xff80..=0xfffe => self.high_ram.read(address),
-            0xffff..=0xffff if !oam_dma => todo!("Interrupts"),
+            0xffff if !oam_dma => self.irq.read(address),
 
             // illegal access during OAM DMA transfer
             // during this process, the GB is only allowed to access HRAM
@@ -239,7 +262,7 @@ impl<C: Cartridge> Device for Emulator<C> {
             }
             0xff00..=0xff7f if !oam_dma => self.write_io(address, data),
             0xff80..=0xfffe => self.high_ram.write(address, data),
-            0xffff..=0xffff if !oam_dma => todo!("Interrupts"),
+            0xffff if !oam_dma => self.irq.write(address, data),
 
             // illegal access during OAM DMA transfer
             // during this process, the GB is only allowed to access HRAM

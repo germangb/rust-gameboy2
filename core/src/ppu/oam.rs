@@ -4,9 +4,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Default, Debug, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct OamTable {}
+pub struct OAMTable {}
 
-impl Device for OamTable {
+impl Device for OAMTable {
+    fn debug_name() -> &'static str {
+        "OAM Table"
+    }
+
     fn read(&self, address: u16) -> u8 {
         todo!()
     }

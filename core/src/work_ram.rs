@@ -20,6 +20,10 @@ impl Default for WorkRAM {
 }
 
 impl Device for WorkRAM {
+    fn debug_name() -> &'static str {
+        "Work RAM"
+    }
+
     fn read(&self, address: u16) -> u8 {
         match address {
             0xc000..=0xdfff => self.data[address as usize - OFFSET],

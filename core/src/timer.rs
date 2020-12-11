@@ -1,5 +1,6 @@
 use crate::{
     device::{invalid_read, invalid_write, Device},
+    irq::Request,
     utils::ClockDecimate,
     EmulationStep, Update, CLOCK,
 };
@@ -45,7 +46,7 @@ impl Timer {
 }
 
 impl Update for Timer {
-    fn update(&mut self, step: &EmulationStep) {
+    fn update(&mut self, step: &EmulationStep, request: &mut Request) {
         // update the DIV clock
         let div = self.div_clock.update(step.clock_ticks);
         self.div = self.div.wrapping_add(div as u8);
@@ -57,6 +58,8 @@ impl Update for Timer {
 
             if tima > 0xff {
                 self.tima = self.tma;
+
+                request.timer = true;
             } else {
                 self.tima = tima as _;
             }
@@ -65,9 +68,7 @@ impl Update for Timer {
 }
 
 impl Device for Timer {
-    fn debug_name() -> &'static str {
-        "Timer"
-    }
+    const DEBUG_NAME: &'static str = "Timer";
 
     fn read(&self, address: u16) -> u8 {
         match address {
@@ -94,4 +95,67 @@ impl Device for Timer {
 }
 
 #[cfg(test)]
-mod test {}
+mod test {
+    use super::Timer;
+    use crate::{
+        cartridge::NoCartridge, device::Device, irq::Request, EmulationStep, Emulator, Update,
+    };
+
+    #[test]
+    fn timer_interrupt() {
+        let mut timer = Timer::default();
+        let mut request = Request::default();
+
+        let mut states = Vec::new();
+
+        // enable CLOCK / 1024 timer
+        timer.write(0xff07, 0b0000_0100);
+        timer.write(0xff05, 0xfe);
+
+        timer.update(&EmulationStep { clock_ticks: 4 }, &mut request);
+        states.push(request.timer); // false
+
+        timer.update(&EmulationStep { clock_ticks: 4 }, &mut request);
+        states.push(request.timer); // false (tima = 0xff)
+
+        timer.update(&EmulationStep { clock_ticks: 4 }, &mut request);
+        states.push(request.timer); // false
+
+        timer.update(&EmulationStep { clock_ticks: 4 }, &mut request);
+        states.push(request.timer); // true
+
+        assert_eq!(vec![false, false, false, true], states);
+    }
+
+    #[test]
+    fn div() {
+        let mut emu = Emulator::new(NoCartridge);
+        emu.timer.div = 0x95;
+
+        let mut states = vec![emu.timer.read(0xff04)];
+
+        emu.write(0xff04, 0xab);
+
+        states.push(emu.timer.read(0xff04));
+
+        assert_eq!(vec![0x95, 0x00], states);
+    }
+
+    #[test]
+    fn tma() {
+        let mut emu = Emulator::new(NoCartridge);
+
+        emu.write(0xff06, 0xab);
+
+        assert_eq!(0xab, emu.timer.read(0xff06))
+    }
+
+    #[test]
+    fn tac() {
+        let mut emu = Emulator::new(NoCartridge);
+
+        emu.write(0xff07, 0xaf);
+
+        assert_eq!(0xaf, emu.timer.read(0xff07))
+    }
+}

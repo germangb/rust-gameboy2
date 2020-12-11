@@ -1,4 +1,6 @@
-use crate::{cartridge::Cartridge, cpu::CPU, device::Device, lcd::Display, Button, Emulator};
+use crate::{
+    cartridge::Cartridge, cpu::CPU, device::Device, irq::Request, lcd::Display, Button, Emulator,
+};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -45,7 +47,11 @@ impl<C: Cartridge> GameBoy<C> {
     }
 
     pub fn press(&mut self, button: &Button) {
-        self.emulator.joypad.press(button)
+        self.emulator.joypad.press(button);
+        self.emulator.update_irq(&Request {
+            joypad: true,
+            ..Default::default()
+        });
     }
 
     pub fn release(&mut self, button: &Button) {
@@ -123,9 +129,7 @@ impl<C: Cartridge> GameBoy<C> {
 }
 
 impl<C: Cartridge> Device for GameBoy<C> {
-    fn debug_name() -> &'static str {
-        "GameBoy (DMG-01)"
-    }
+    const DEBUG_NAME: &'static str = "Game Boy (DMG01)";
 
     fn read(&self, address: u16) -> u8 {
         self.emulator.read(address)

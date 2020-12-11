@@ -57,9 +57,7 @@ impl Joypad {
 }
 
 impl Device for Joypad {
-    fn debug_name() -> &'static str {
-        "Joypad"
-    }
+    const DEBUG_NAME: &'static str = "Joypad";
 
     fn read(&self, address: u16) -> u8 {
         if address != 0xff00 {
@@ -98,39 +96,32 @@ impl Device for Joypad {
 
 #[cfg(test)]
 mod test {
-    use super::{Button, Joypad, Select};
-    use crate::device::Device;
-
-    fn joypad() -> Joypad {
-        Joypad {
-            select: Select::Button,
-            matrix: 0,
-        }
-    }
+    use super::{Button, Select};
+    use crate::{cartridge::NoCartridge, device::Device, Emulator};
 
     #[test]
     fn button_select() {
-        let mut joypad = joypad();
+        let mut emu = Emulator::new(NoCartridge);
 
-        joypad.press(&Button::A);
-        joypad.press(&Button::Select);
+        emu.joypad.press(&Button::A);
+        emu.joypad.press(&Button::Select);
 
         // select button row
-        joypad.write(0xff00, 0b0001_0000);
+        emu.write(0xff00, 0b0001_0000);
 
-        assert_eq!(0b0001_1010, joypad.read(0xff00));
+        assert_eq!(0b0001_1010, emu.joypad.read(0xff00));
     }
 
     #[test]
     fn direction_select() {
-        let mut joypad = joypad();
+        let mut emu = Emulator::new(NoCartridge);
 
-        joypad.press(&Button::Right);
-        joypad.press(&Button::Up);
+        emu.joypad.press(&Button::Right);
+        emu.joypad.press(&Button::Up);
 
         // select direction row
-        joypad.write(0xff00, 0b0010_0000);
+        emu.write(0xff00, 0b0010_0000);
 
-        assert_eq!(0b0010_1010, joypad.read(0xff00));
+        assert_eq!(0b0010_1010, emu.joypad.read(0xff00));
     }
 }

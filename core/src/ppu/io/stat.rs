@@ -1,75 +1,234 @@
 use crate::{
     device::{invalid_read, invalid_write, Device},
-    EmulationStep, Update,
+    irq::Request,
+    EmulationStep, Update, CLOCK,
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+const SEARCH_DOTS: u64 = 80; // 80 dots (19 us)
+const PIXELS_DOTS: u64 = 230; // 168 to 291 cycles (40 to 60 us) depending on sprite count
+const HBLANK_DOTS: u64 = 147; // 85 to 208 dots (20 to 49 us) depending on previous mode 3 duration
+const VBLANK_DOTS: u64 = 4560; // 4560 dots (1087 us, 10 scanlines)
+
+const HBLANK_MODE: u8 = 0;
+const VBLANK_MODE: u8 = 1;
+const SEARCH_MODE: u8 = 2;
+const PIXELS_MODE: u8 = 3;
+
 #[derive(Default, Debug, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct STAT {
+    // Display clock (dots)
+    dots: u64,
     stat: u8,
+    ly: u8,
+    lyc: u8,
 }
 
 impl STAT {
-    pub fn lyc_ly_int(&self) -> bool {
-        todo!()
+    pub fn ly(&self) -> u8 {
+        self.ly
     }
 
-    pub fn oam_int(&self) -> bool {
-        todo!()
+    fn lyc_int(&self) -> bool {
+        (self.stat & 0b0100_0000) != 0
     }
 
-    pub fn vblank_int(&self) -> bool {
-        todo!()
+    fn oam_int(&self) -> bool {
+        (self.stat & 0b0010_0000) != 0
     }
 
-    pub fn hblank_int(&self) -> bool {
-        todo!()
+    fn vblank_int(&self) -> bool {
+        (self.stat & 0b0001_0000) != 0
     }
 
-    pub fn coincidence_flag(&self) -> bool {
-        todo!()
+    fn hblank_int(&self) -> bool {
+        (self.stat & 0b0000_1000) != 0
     }
 
-    pub fn mode(&self) -> u8 {
-        todo!()
+    fn coincidence_flag(&self) -> bool {
+        (self.stat & 0b0000_0100) != 0
+    }
+
+    fn mode(&self) -> u8 {
+        (self.stat & 0b0000_0011)
+    }
+
+    fn set_mode(&mut self, mode: u8) {
+        self.stat &= 0b1111_1100;
+        self.stat |= mode & 0b11;
+    }
+
+    fn search(&mut self, request: &mut Request) {
+        if self.dots > SEARCH_DOTS {
+            self.dots %= SEARCH_DOTS;
+        } else {
+            return;
+        }
+
+        self.set_mode(PIXELS_MODE);
+    }
+
+    fn pixels(&mut self, request: &mut Request) {
+        if self.dots > PIXELS_DOTS {
+            self.dots %= PIXELS_DOTS;
+        } else {
+            return;
+        }
+
+        if self.hblank_int() {
+            request.lcd_stat = true;
+        }
+        self.set_mode(HBLANK_MODE);
+    }
+
+    fn hblank(&mut self, request: &mut Request) {
+        if self.dots > HBLANK_DOTS {
+            self.dots %= HBLANK_DOTS;
+        } else {
+            return;
+        }
+
+        // increment line
+        self.ly += 1;
+
+        if self.ly == self.lyc && self.lyc_int() {
+            request.lcd_stat = true;
+        }
+
+        if self.ly == 144 {
+            if self.vblank_int() {
+                request.lcd_stat = true;
+            }
+            request.vblank = true;
+            self.set_mode(VBLANK_MODE);
+        } else {
+            if self.oam_int() {
+                request.lcd_stat = true;
+            }
+            self.set_mode(SEARCH_MODE);
+        }
+    }
+
+    fn vblank(&mut self, request: &mut Request) {
+        if self.dots > VBLANK_DOTS / 10 {
+            self.dots %= VBLANK_DOTS / 10;
+        } else {
+            return;
+        }
+
+        // increment line
+        self.ly += 1;
+
+        if self.ly == self.lyc && self.lyc_int() {
+            request.lcd_stat = true;
+        }
+
+        if self.ly == 154 {
+            if self.oam_int() {
+                request.lcd_stat = true;
+            }
+            self.ly = 0;
+            self.set_mode(SEARCH_MODE);
+        }
     }
 }
 
 impl Update for STAT {
-    fn update(&mut self, step: &EmulationStep) {
-        todo!()
+    fn update(&mut self, step: &EmulationStep, request: &mut Request) {
+        self.dots += step.clock_ticks;
+
+        match self.mode() {
+            SEARCH_MODE => self.search(request),
+            PIXELS_MODE => self.pixels(request),
+            HBLANK_MODE => self.hblank(request),
+            VBLANK_MODE => self.vblank(request),
+            _ => unreachable!(),
+        }
+
+        if self.ly == self.lyc {
+            self.stat |= 0b0000_0100;
+        } else {
+            self.stat &= 0b1111_1011;
+        }
     }
 }
 
 impl Device for STAT {
-    fn debug_name() -> &'static str {
-        "STAT"
-    }
+    const DEBUG_NAME: &'static str = "LCD Status (STAT)";
 
     fn read(&self, address: u16) -> u8 {
-        if address != 0xff41 {
-            invalid_read(address);
+        match address {
+            0xff41 => self.stat,
+            0xff44 => self.ly,
+            0xff45 => self.lyc,
+            _ => invalid_read(address),
         }
-
-        self.stat
     }
 
     fn write(&mut self, address: u16, data: u8) {
-        if address != 0xff41 {
-            invalid_write(address);
+        match address {
+            0xff41 => {
+                self.stat &= 0b0000_0111;
+                self.stat |= data & 0b1111_1000;
+            }
+            0xff44 => todo!(),
+            0xff45 => self.lyc = data,
+            _ => invalid_write(address),
         }
-
-        self.stat &= 0b0000_0111;
-        self.stat |= data & 0b1111_1000
     }
 }
 
 #[cfg(test)]
 mod test {
+    use crate::{cartridge::NoCartridge, device::Device, Emulator};
+
     #[test]
     fn stat() {
+        let mut emu = Emulator::new(NoCartridge);
+
+        emu.ppu.stat.stat = 1;
+        emu.write(0xff41, 0xff);
+
+        assert_eq!(0b1111_1_001, emu.ppu.stat.read(0xff41));
+    }
+
+    #[test]
+    fn lyc() {
+        let mut emu = Emulator::new(NoCartridge);
+
+        emu.write(0xff45, 0x42);
+
+        assert_eq!(0x42, emu.ppu.stat.read(0xff45));
+    }
+
+    #[test]
+    fn ly() {
+        let mut emu = Emulator::new(NoCartridge);
+
+        emu.ppu.stat.ly = 7;
+
+        assert_eq!(7, emu.read(0xff44));
+    }
+
+    #[test]
+    fn lcd_lyc_interrupt() {
+        todo!()
+    }
+
+    #[test]
+    fn lcd_oam_interrupt() {
+        todo!()
+    }
+
+    #[test]
+    fn lcd_vblank_interrupt() {
+        todo!()
+    }
+
+    #[test]
+    fn vblank_interrupt() {
         todo!()
     }
 }

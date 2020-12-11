@@ -1,5 +1,6 @@
 use crate::{
     device::{invalid_read, invalid_write, Device},
+    irq::Request,
     EmulationStep, Update,
 };
 #[cfg(feature = "serde")]
@@ -26,7 +27,7 @@ impl OamDma {
 }
 
 impl Update for OamDma {
-    fn update(&mut self, step: &EmulationStep) {
+    fn update(&mut self, step: &EmulationStep, _: &mut Request) {
         if self.clocks >= step.clock_ticks {
             self.clocks -= step.clock_ticks;
         } else {
@@ -36,9 +37,7 @@ impl Update for OamDma {
 }
 
 impl Device for OamDma {
-    fn debug_name() -> &'static str {
-        "OAM DMA Transfer"
-    }
+    const DEBUG_NAME: &'static str = "OAM DMA";
 
     fn read(&self, address: u16) -> u8 {
         if address != 0xff46 {
@@ -79,11 +78,11 @@ mod test {
         states.push(dma.is_active());
 
         for _ in 0..160 - 4 {
-            dma.update(&EmulationStep { clock_ticks: 1 });
+            dma.update(&EmulationStep { clock_ticks: 1 }, &mut Default::default());
         }
 
         states.push(dma.is_active());
-        dma.update(&EmulationStep { clock_ticks: 4 });
+        dma.update(&EmulationStep { clock_ticks: 4 }, &mut Default::default());
         states.push(dma.is_active());
 
         assert_eq!(vec![false, true, true, false], states);

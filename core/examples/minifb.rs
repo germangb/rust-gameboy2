@@ -1,4 +1,4 @@
-use core::{cartridge::NoCartridge, GameBoy};
+use core::{cartridge::NoCartridge, device::Device, GameBoy};
 use minifb::{Key, Window, WindowOptions};
 use simple_logger::SimpleLogger;
 
@@ -17,6 +17,7 @@ fn main() {
 
     while window.is_open() {
         gb.update();
+
         window
             .update_with_buffer(&gb.display()[..], 160, 144)
             .unwrap();

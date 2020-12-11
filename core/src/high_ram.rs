@@ -3,6 +3,7 @@ use crate::device::{invalid_read, invalid_write, Device};
 use serde::{Deserialize, Serialize};
 
 const OFFSET: usize = 0xff80;
+const SIZE: usize = 0x27;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -20,9 +21,7 @@ impl Default for HighRAM {
 }
 
 impl Device for HighRAM {
-    fn debug_name() -> &'static str {
-        "High Ram"
-    }
+    const DEBUG_NAME: &'static str = "High Ram";
 
     fn read(&self, address: u16) -> u8 {
         match address {
@@ -41,16 +40,18 @@ impl Device for HighRAM {
 
 #[cfg(test)]
 mod test {
-    use super::HighRAM;
-    use crate::device::Device;
+    use crate::{cartridge::NoCartridge, device::Device, Emulator};
 
     #[test]
     fn high_ram() {
-        let mut hram = HighRAM::default();
+        let mut emu = Emulator::new(NoCartridge);
 
-        hram.write(0xff80, 1);
-        hram.write(0xfffe, 2);
+        emu.write(0xff80, 1);
+        emu.write(0xfffe, 2);
 
-        assert_eq!([1, 2], [hram.read(0xff80), hram.read(0xfffe)]);
+        assert_eq!(
+            [1, 2],
+            [emu.high_ram.read(0xff80), emu.high_ram.read(0xfffe)]
+        );
     }
 }

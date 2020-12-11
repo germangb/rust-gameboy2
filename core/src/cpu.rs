@@ -25,8 +25,6 @@ impl CPU {
     }
 
     pub(super) fn update<D: Device>(&mut self, device: &mut D) -> u64 {
-        info!("Begin CPU update");
-
         let int = self.int(device);
         let cycles = if int != 0 {
             int
@@ -35,8 +33,6 @@ impl CPU {
         } else {
             4
         };
-
-        info!("End CPU update");
 
         cycles
     }
@@ -64,11 +60,7 @@ impl CPU {
         self.registers.pc = v;
     }
 
-    fn exec_cb<D: Device>(&mut self, device: &mut D) -> u64 {
-        let opcode = self.fetch(device);
-
-        info!("Fetched CB opcode: {:#02x}", opcode);
-
+    fn exec_opcode_cb<D: Device>(&mut self, device: &mut D, opcode: u8) -> u64 {
         match opcode {
             // RLC n
             0x00 => self.registers.b = self.rlc_n(self.registers.b),
@@ -466,13 +458,8 @@ impl CPU {
         4
     }
 
-    fn exec<D: Device>(&mut self, device: &mut D) -> u64 {
-        info!("Program Counter (PC): {:#04x}", self.registers.pc);
-
-        let opcode = self.fetch(device);
+    fn exec_opcode<D: Device>(&mut self, device: &mut D, opcode: u8) -> u64 {
         let mut branch = false;
-
-        info!("Fetched opcode: {:#02x}", opcode);
 
         match opcode {
             // ADD A,n
@@ -967,8 +954,8 @@ impl CPU {
             0xf3 => self.ime = false,
             0xfb => self.ime = true,
 
-            // run CB opcode
-            0xcb => return self.exec_cb(device),
+            // CB opcode is handled by another method
+            0xcb => unreachable!(),
 
             0xd3 | 0xdb | 0xdd | 0xe3 | 0xe4 | 0xeb..=0xed | 0xf4 | 0xfc | 0xfd => {
                 panic!("Unknown opcode: {:#02x}", opcode)
@@ -976,6 +963,21 @@ impl CPU {
         }
 
         4
+    }
+
+    fn exec<D: Device>(&mut self, device: &mut D) -> u64 {
+        let pc = self.registers.pc;
+        let opcode = self.fetch(device);
+
+        if opcode == 0xcb {
+            let cb = self.fetch(device);
+
+            info!("PC: {:#04x}, Opcode: {:#02x}, CB: {:#02x}", pc, opcode, cb);
+            self.exec_opcode_cb(device, cb)
+        } else {
+            info!("PC: {:#04x}, Opcode: {:#02x}", pc, opcode);
+            self.exec_opcode(device, opcode)
+        }
     }
 
     fn fetch<D: Device>(&mut self, device: &D) -> u8 {

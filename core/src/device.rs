@@ -7,6 +7,26 @@ use serde::{Deserialize, Serialize};
 pub type Address = u16;
 pub type Data = u8;
 
+pub trait Device {
+    const DEBUG_NAME: &'static str;
+
+    fn read(&self, address: Address) -> u8;
+
+    fn write(&mut self, address: Address, data: Data);
+
+    fn read_word(&self, address: Address) -> u16 {
+        let bytes = [self.read(address), self.read(address + 1)];
+        LittleEndian::read_u16(&bytes[..])
+    }
+
+    fn write_word(&mut self, address: Address, data: u16) {
+        let mut bytes = [0; 2];
+        LittleEndian::write_u16(&mut &mut bytes[..], data);
+        self.write(address, bytes[0]);
+        self.write(address + 1, bytes[1]);
+    }
+}
+
 // returned for invalid memory accesses
 // panics on release builds
 pub(crate) fn invalid_read(address: Address) -> u8 {
@@ -32,57 +52,23 @@ pub(crate) fn invalid_write(address: Address) {
 pub(crate) struct LogDevice<D>(#[educe(Deref, DerefMut)] pub D);
 
 impl<D: Device> Device for LogDevice<D> {
-    fn debug_name() -> &'static str {
-        D::debug_name()
-    }
+    const DEBUG_NAME: &'static str = D::DEBUG_NAME;
 
     fn read(&self, address: u16) -> u8 {
-        read(&self.0, address)
+        info!("Read from device ({}): {:#04x}", D::DEBUG_NAME, address);
+        let data = self.0.read(address);
+        info!("Data: {:#02x} ({})", data, data);
+        data
     }
 
     fn write(&mut self, address: u16, data: u8) {
-        write(&mut self.0, address, data)
-    }
-}
-
-fn read<D: Device>(device: &D, address: Address) -> u8 {
-    info!(
-        "Reading from device ({}): {:#04x}",
-        D::debug_name(),
-        address
-    );
-    let data = device.read(address);
-    info!("Read data: {:#02x} ({})", data, data);
-    data
-}
-
-fn write<D: Device>(device: &mut D, address: Address, data: u8) {
-    #[rustfmt::skip]
-    info!("Writing {:#02x} to device ({}): {:#04x}", data, D::debug_name(), address);
-    device.write(address, data);
-}
-
-pub trait Device {
-    fn debug_name() -> &'static str;
-
-    /// Read byte
-    fn read(&self, address: Address) -> u8;
-
-    /// Write byte.
-    fn write(&mut self, address: Address, data: Data);
-
-    /// Read a word.
-    fn read_word(&self, address: Address) -> u16 {
-        let bytes = [self.read(address), self.read(address + 1)];
-        LittleEndian::read_u16(&bytes[..])
-    }
-
-    /// Write a word.
-    fn write_word(&mut self, address: Address, data: u16) {
-        let mut bytes = [0; 2];
-        LittleEndian::write_u16(&mut &mut bytes[..], data);
-        self.write(address, bytes[0]);
-        self.write(address + 1, bytes[1]);
+        info!(
+            "Write {:#02x} to device ({}): {:#04x}",
+            data,
+            D::DEBUG_NAME,
+            address
+        );
+        self.0.write(address, data);
     }
 }
 
@@ -93,9 +79,7 @@ mod test {
     type TestDevice = Box<[u8; 0x10000]>;
 
     impl Device for TestDevice {
-        fn debug_name() -> &'static str {
-            "test"
-        }
+        const DEBUG_NAME: &'static str = "Test";
 
         fn read(&self, address: u16) -> u8 {
             self[address as usize]

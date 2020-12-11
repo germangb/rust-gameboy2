@@ -3,6 +3,7 @@ use crate::device::{invalid_read, invalid_write, Device};
 use serde::{Deserialize, Serialize};
 
 const OFFSET: usize = 0xc000;
+const SIZE: usize = 0x2000;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -14,15 +15,13 @@ pub struct WorkRAM {
 impl Default for WorkRAM {
     fn default() -> Self {
         Self {
-            data: vec![0; 0x2000].into_boxed_slice(),
+            data: vec![0; SIZE].into_boxed_slice(),
         }
     }
 }
 
 impl Device for WorkRAM {
-    fn debug_name() -> &'static str {
-        "Work RAM"
-    }
+    const DEBUG_NAME: &'static str = "Work RAM";
 
     fn read(&self, address: u16) -> u8 {
         match address {
@@ -41,16 +40,18 @@ impl Device for WorkRAM {
 
 #[cfg(test)]
 mod test {
-    use super::WorkRAM;
-    use crate::device::Device;
+    use crate::{cartridge::NoCartridge, device::Device, Emulator};
 
     #[test]
     fn work_ram() {
-        let mut wram = WorkRAM::default();
+        let mut emu = Emulator::new(NoCartridge);
 
-        wram.write(0xc000, 1);
-        wram.write(0xcfff, 2);
+        emu.write(0xc000, 1);
+        emu.write(0xcfff, 2);
 
-        assert_eq!([1, 2], [wram.read(0xc000), wram.read(0xcfff)]);
+        assert_eq!(
+            [1, 2],
+            [emu.work_ram.read(0xc000), emu.work_ram.read(0xcfff)]
+        );
     }
 }

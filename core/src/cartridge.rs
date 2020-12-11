@@ -13,9 +13,7 @@ pub struct NoCartridge;
 impl Cartridge for NoCartridge {}
 
 impl Device for NoCartridge {
-    fn debug_name() -> &'static str {
-        "NoCartridge"
-    }
+    const DEBUG_NAME: &'static str = "No-Cartridge";
 
     fn read(&self, address: u16) -> u8 {
         if matches!(address, 0x0000..=0x7fff | 0xa000..=0xbfff) {
@@ -31,8 +29,3 @@ impl Device for NoCartridge {
         }
     }
 }
-
-pub struct SingleBank;
-pub struct MBC1;
-pub struct MBC3;
-pub struct MBC5;

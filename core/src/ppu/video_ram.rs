@@ -3,6 +3,7 @@ use crate::device::{invalid_read, invalid_write, Device};
 use serde::{Deserialize, Serialize};
 
 const OFFSET: usize = 0x8000;
+const SIZE: usize = 0x2000;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -14,15 +15,13 @@ pub struct VideoRAM {
 impl Default for VideoRAM {
     fn default() -> Self {
         Self {
-            data: vec![0; 0x2000].into_boxed_slice(),
+            data: vec![0; SIZE].into_boxed_slice(),
         }
     }
 }
 
 impl Device for VideoRAM {
-    fn debug_name() -> &'static str {
-        "Video RAM"
-    }
+    const DEBUG_NAME: &'static str = "Video RAM";
 
     fn read(&self, address: u16) -> u8 {
         match address {
@@ -41,16 +40,21 @@ impl Device for VideoRAM {
 
 #[cfg(test)]
 mod test {
-    use super::VideoRAM;
-    use crate::device::Device;
+    use crate::{cartridge::NoCartridge, device::Device, Emulator};
 
     #[test]
     fn video_ram() {
-        let mut vram = VideoRAM::default();
+        let mut emu = Emulator::new(NoCartridge);
 
-        vram.write(0x8000, 1);
-        vram.write(0x9fff, 2);
+        emu.write(0x8000, 1);
+        emu.write(0x9fff, 2);
 
-        assert_eq!([1, 2], [vram.read(0x8000), vram.read(0x9fff)]);
+        assert_eq!(
+            [1, 2],
+            [
+                emu.ppu.video_ram.read(0x8000),
+                emu.ppu.video_ram.read(0x9fff)
+            ]
+        );
     }
 }

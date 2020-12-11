@@ -9,6 +9,10 @@ pub struct LCDC {
 }
 
 impl LCDC {
+    pub fn lcd_on(&self) -> bool {
+        (self.lcdc & 0b1000_0000) != 0
+    }
+
     // Returns the address where the window map.
     // According to LCDC.6
     pub fn window_map_select(&self) -> u16 {
@@ -29,9 +33,7 @@ impl LCDC {
 }
 
 impl Device for LCDC {
-    fn debug_name() -> &'static str {
-        "LCDC"
-    }
+    const DEBUG_NAME: &'static str = "LCD Control (LCDC)";
 
     fn read(&self, address: u16) -> u8 {
         if address != 0xff40 {
@@ -52,8 +54,29 @@ impl Device for LCDC {
 
 #[cfg(test)]
 mod test {
+    use crate::{cartridge::NoCartridge, device::Device, Emulator};
+    use crate::ppu::io::lcdc::LCDC;
+
+    #[test]
+    fn lcd_off() {
+        let lcdc = LCDC { lcdc: 0 };
+
+        assert!(!lcdc.lcd_on());
+    }
+
+    #[test]
+    fn lcd_on() {
+        let lcdc = LCDC { lcdc: 0b1000_0000 };
+
+        assert!(lcdc.lcd_on());
+    }
+
     #[test]
     fn lcdc() {
-        todo!()
+        let mut emu = Emulator::new(NoCartridge);
+
+        emu.write(0xff40, 0xab);
+
+        assert_eq!(0xab, emu.ppu.lcdc.read(0xff40));
     }
 }

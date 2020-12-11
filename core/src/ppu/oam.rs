@@ -7,9 +7,7 @@ use serde::{Deserialize, Serialize};
 pub struct OAMTable {}
 
 impl Device for OAMTable {
-    fn debug_name() -> &'static str {
-        "OAM Table"
-    }
+    const DEBUG_NAME: &'static str = "OAM Table";
 
     fn read(&self, address: u16) -> u8 {
         todo!()

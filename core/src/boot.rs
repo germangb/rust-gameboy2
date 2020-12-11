@@ -4,7 +4,7 @@ use log::{error, info};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "boot")]
-const ROM: &[u8] = include_bytes!("boot/boot.gb");
+const ROM: &[u8] = include_bytes!("boot/dmg_boot.bin");
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Boot {
@@ -24,9 +24,7 @@ impl Boot {
 }
 
 impl Device for Boot {
-    fn debug_name() -> &'static str {
-        "Boot"
-    }
+    const DEBUG_NAME: &'static str = "BOOT Section";
 
     fn read(&self, address: u16) -> u8 {
         match address {

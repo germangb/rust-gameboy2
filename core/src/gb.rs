@@ -72,11 +72,8 @@ impl<C: Cartridge> GameBoy<C> {
     }
 
     /// Update emulator.
-    pub fn update(&mut self) {
-        // run for roughly 1/60 seconds
-        for _ in 0..super::CLOCK / 60 {
-            self.emulator.update();
-        }
+    pub fn update_frame(&mut self) {
+        self.emulator.update_frame();
     }
 
     fn boot_cpu(&mut self) {

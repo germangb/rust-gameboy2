@@ -12,7 +12,7 @@ pub mod stat;
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Scroll {
     pub scy: u8,
-    scx: u8,
+    pub scx: u8,
 }
 
 impl Device for Scroll {
@@ -65,23 +65,9 @@ impl Device for Window {
 #[derive(Default, Debug, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Palette {
-    bgp: u8,
-    obp0: u8,
-    obp1: u8,
-}
-
-impl Palette {
-    pub fn bgp(&self) -> [Pixel; 4] {
-        todo!()
-    }
-
-    pub fn obp0(&self) -> [Pixel; 4] {
-        todo!()
-    }
-
-    pub fn obp1(&self) -> [Pixel; 4] {
-        todo!()
-    }
+    pub bgp: u8,
+    pub obp0: u8,
+    pub obp1: u8,
 }
 
 impl Device for Palette {

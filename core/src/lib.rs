@@ -130,6 +130,17 @@ impl<C: Cartridge> Emulator<C> {
         }
     }
 
+    fn update_frame(&mut self) {
+        // run until VBLANK
+        while self.read(0xff41) & 0b11 != 0b01 {
+            self.update();
+        }
+        // run until next OAM search
+        while self.read(0xff41) & 0b11 != 0b10 {
+            self.update();
+        }
+    }
+
     fn stop_running(&self) {
         self.running.set(false);
     }
@@ -268,7 +279,6 @@ impl<C: Cartridge> Device for Emulator<C> {
         let oam_dma = self.oam_dma.is_active();
         let boot = self.boot.is_enabled();
 
-        // FIXME code repetition...
         match address {
             0x0000..=0x00ff if boot => self.boot.write(address, data),
             0x0000..=0x7fff if !oam_dma => self.cartridge.write(address, data),

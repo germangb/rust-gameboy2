@@ -4,6 +4,7 @@ use log::{error, info};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+type Endianness = LittleEndian;
 pub type Address = u16;
 pub type Data = u8;
 
@@ -16,12 +17,12 @@ pub trait Device {
 
     fn read_word(&self, address: Address) -> u16 {
         let bytes = [self.read(address), self.read(address + 1)];
-        LittleEndian::read_u16(&bytes[..])
+        Endianness::read_u16(&bytes[..])
     }
 
     fn write_word(&mut self, address: Address, data: u16) {
         let mut bytes = [0; 2];
-        LittleEndian::write_u16(&mut &mut bytes[..], data);
+        Endianness::write_u16(&mut &mut bytes[..], data);
         self.write(address, bytes[0]);
         self.write(address + 1, bytes[1]);
     }

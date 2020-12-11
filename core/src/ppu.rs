@@ -42,15 +42,31 @@ impl PPU {
 
     // render the given line to the display buffer
     fn draw_line(&mut self, ly: u8) {
-        let row = ly.wrapping_add(self.scroll.scy);
+        let display_offset = lcd::WIDTH * (ly as usize);
 
-        let offset = lcd::WIDTH * (ly as usize);
-        for pixel in &mut self.display[offset..offset + lcd::WIDTH] {
-            if row > 143 {
-                *pixel = 0x0;
-            } else {
-                *pixel = 0xff00ff;
-            }
+        for dot in 0..lcd::WIDTH {
+            // map pixel
+            let row = self.scroll.scy.wrapping_add(ly) as u16;
+            let col = self.scroll.scx.wrapping_add(dot as u8) as u16;
+
+            // tile pixel
+            let prow = row % 8;
+            let pcol = 7 - col % 8;
+
+            // tile index
+            let tile_index_address = self.lcdc.bg_map_select() + 32 * (row / 8) + (col / 8);
+            let tile_index = self.read(tile_index_address) as u16;
+
+            // tile data (each row takes 2 bytes so a full 8x8 tile consists of 16 bytes)
+            let tile_data_address =
+                self.lcdc.bg_window_data_select() + (tile_index * 16) + (prow * 2);
+            let tile_data_hi = (self.read(tile_data_address) >> pcol) & 1;
+            let tile_data_lo = (self.read(tile_data_address + 1) >> pcol) & 1;
+
+            let pal_index = (tile_data_hi << 1) | tile_data_lo;
+            let color_index = (self.palette.bgp >> pal_index) & 0b11;
+            self.display[display_offset + dot as usize] =
+                [0xffffff, 0x7f7f7f, 0x3f3f3f, 0x000000][color_index as usize];
         }
     }
 }

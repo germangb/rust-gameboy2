@@ -22,13 +22,21 @@ impl LCDC {
     // Returns the address where the BG & Window data.
     // According to LCDC.4
     pub fn bg_window_data_select(&self) -> u16 {
-        todo!()
+        if (self.lcdc & 0b0001_0000) != 0 {
+            0x8000
+        } else {
+            0x8800
+        }
     }
 
     // Returns the address where the window map.
     // According to LCDC.3
     pub fn bg_map_select(&self) -> u16 {
-        todo!()
+        if (self.lcdc & 0b0000_1000) != 0 {
+            0x9c00
+        } else {
+            0x9800
+        }
     }
 }
 
@@ -54,8 +62,7 @@ impl Device for LCDC {
 
 #[cfg(test)]
 mod test {
-    use crate::{cartridge::NoCartridge, device::Device, Emulator};
-    use crate::ppu::io::lcdc::LCDC;
+    use crate::{cartridge::NoCartridge, device::Device, ppu::io::lcdc::LCDC, Emulator};
 
     #[test]
     fn lcd_off() {

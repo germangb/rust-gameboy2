@@ -149,7 +149,10 @@ impl<C: Cartridge> Emulator<C> {
     fn read_io(&self, address: Address) -> u8 {
         match address {
             0xff00          => self.joypad.read(address),
-            0xff01..=0xff02 => todo!("Port/Mode"),
+            0xff01..=0xff02 => {
+                warn!("Port/Mode");
+                0
+            },
             0xff04..=0xff07 => self.timer.read(address),
             0xff0f          => self.irq.read(address),
             0xff10..=0xff26 => self.apu.read(address),
@@ -169,7 +172,9 @@ impl<C: Cartridge> Emulator<C> {
     fn write_io(&mut self, address: Address, data: u8) {
         match address {
             0xff00          => self.joypad.write(address, data),
-            0xff01..=0xff02 => todo!("Port/Mode"),
+            0xff01..=0xff02 => {
+                warn!("Port/Mode");
+            },
             0xff04..=0xff07 => self.timer.write(address, data),
             0xff0f          => self.irq.write(address, data),
             0xff10..=0xff26 => self.apu.write(address, data),

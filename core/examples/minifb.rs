@@ -1,5 +1,5 @@
 use core::{
-    cartridge::{Cartridge, NoCartridge},
+    cartridge::{Cartridge, NoCartridge, Rom},
     device::Device,
     GameBoy,
 };
@@ -8,6 +8,38 @@ use simple_logger::SimpleLogger;
 
 const WIDTH: usize = 160;
 const HEIGHT: usize = 144;
+
+fn main() {
+    //SimpleLogger::new().init().unwrap();
+
+    let opts = WindowOptions::default();
+    let mut window = Window::new("GameBoy", 160, 144, opts).unwrap();
+
+    window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
+
+    //let mut gb = GameBoy::new(Rom::new(include_bytes!("tetris.gb").to_vec()));
+    let mut gb = GameBoy::new(NoCartridge);
+
+    while window.is_open() {
+        gb.update_frame();
+
+        if window.is_key_pressed(Key::M, KeyRepeat::No) {
+            dump_tile_map(&gb);
+        }
+
+        if window.is_key_pressed(Key::D, KeyRepeat::No) {
+            dump_tile_data(&gb);
+        }
+
+        if window.is_key_pressed(Key::R, KeyRepeat::No) {
+            println!("LCDC={:08b}", gb.read(0xff40));
+        }
+
+        window
+            .update_with_buffer(&gb.display()[..], 160, 144)
+            .unwrap();
+    }
+}
 
 fn dump_tile_map(gb: &GameBoy<impl Cartridge>) {
     println!("TILE MAP");
@@ -44,35 +76,4 @@ fn dump_tile_data(gb: &GameBoy<impl Cartridge>) {
         }
     }
     println!("```");
-}
-
-fn main() {
-    //SimpleLogger::new().init().unwrap();
-
-    let opts = WindowOptions::default();
-    let mut window = Window::new("GameBoy", 160, 155, opts).unwrap();
-
-    window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
-
-    let mut gb = GameBoy::new(NoCartridge);
-
-    while window.is_open() {
-        gb.update_frame();
-
-        if window.is_key_pressed(Key::M, KeyRepeat::No) {
-            dump_tile_map(&gb);
-        }
-
-        if window.is_key_pressed(Key::D, KeyRepeat::No) {
-            dump_tile_data(&gb);
-        }
-
-        if window.is_key_pressed(Key::R, KeyRepeat::No) {
-            println!("LCDC={:08b}", gb.read(0xff40));
-        }
-
-        window
-            .update_with_buffer(&gb.display()[..], 160, 144)
-            .unwrap();
-    }
 }

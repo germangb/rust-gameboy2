@@ -14,10 +14,18 @@ impl LCDC {
         (self.lcdc & 0b1000_0000) != 0
     }
 
+    pub fn window_enable(&self) -> bool {
+        (self.lcdc & 0b0010_0000) != 0
+    }
+
     // Returns the address where the window map.
     // According to LCDC.6
     pub fn window_map_select(&self) -> u16 {
-        todo!()
+        if (self.lcdc & 0b0100_0000) != 0 {
+            0x9c00
+        } else {
+            0x9800
+        }
     }
 
     // Returns the address where the BG & Window data.
@@ -88,5 +96,35 @@ mod test {
         emu.write(0xff40, 0xab);
 
         assert_eq!(0xab, emu.ppu.lcdc.read(0xff40));
+    }
+
+    #[test]
+    fn window_display() {
+        todo!()
+    }
+
+    #[test]
+    fn obj_display() {
+        todo!()
+    }
+
+    #[test]
+    fn bg_window_display_priority_display() {
+        todo!()
+    }
+
+    #[test]
+    fn bg_window_data_select() {
+        todo!()
+    }
+
+    #[test]
+    fn bg_map_select() {
+        todo!()
+    }
+
+    #[test]
+    fn window_map_select() {
+        todo!()
     }
 }

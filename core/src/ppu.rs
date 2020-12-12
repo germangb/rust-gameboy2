@@ -3,7 +3,7 @@ use crate::{
     irq::Request,
     ppu::{
         io::{lcdc::LCDC, stat::STAT, Palette, Scroll, Window},
-        lcd::{Display, DisplaySerde},
+        lcd::{Display, DisplaySerde, Pixel},
         oam::OAMTable,
         video_ram::VideoRAM,
     },
@@ -36,37 +36,67 @@ impl PPU {
         &self.display
     }
 
-    fn clear(&mut self) {
+    fn clear_display(&mut self) {
         self.display.iter_mut().for_each(|p| *p = lcd::PALETTE[0]);
     }
 
     // render the given line to the display buffer
-    fn draw_line(&mut self, ly: u8) {
+    fn draw_scanline(&mut self, ly: u8) {
         let display_offset = lcd::WIDTH * (ly as usize);
+        let Scroll { scy, scx } = self.scroll;
+        let Window { wy, wx } = self.window;
 
         for dot in 0..lcd::WIDTH {
-            // map pixel
-            let row = self.scroll.scy.wrapping_add(ly) as u16;
-            let col = self.scroll.scx.wrapping_add(dot as u8) as u16;
+            let row = scy.wrapping_add(ly);
+            let col = scx.wrapping_add(dot as u8);
 
-            // tile pixel
-            let prow = row % 8;
-            let pcol = 7 - col % 8;
+            let color = if self.lcdc.window_enable() {
+                // WX - Window X Position minus 7
+                let dot = (dot + 7) as u8;
 
-            // tile index
-            let tile_index_address = self.lcdc.bg_map_select() + 32 * (row / 8) + (col / 8);
-            let tile_index = self.read(tile_index_address) as u16;
+                if ly >= wy && dot >= wx {
+                    let row = ly - wy;
+                    let col = dot - wx;
 
-            // tile data (each row takes 2 bytes so a full 8x8 tile consists of 16 bytes)
-            let tile_data_address =
-                self.lcdc.bg_window_data_select() + (tile_index * 16) + (prow * 2);
-            let tile_data_hi = (self.read(tile_data_address) >> pcol) & 1;
-            let tile_data_lo = (self.read(tile_data_address + 1) >> pcol) & 1;
+                    self.decode_map(row, col, self.lcdc.window_map_select())
+                } else {
+                    self.decode_map(row, col, self.lcdc.bg_map_select())
+                }
+            } else {
+                self.decode_map(row, col, self.lcdc.bg_map_select())
+            };
 
-            let pal_index = (tile_data_hi << 1) | tile_data_lo;
-            let color_index = (self.palette.bgp >> pal_index) & 0b11;
-            self.display[display_offset + dot as usize] = lcd::PALETTE[color_index as usize];
+            self.display[display_offset + dot as usize] = color;
         }
+    }
+
+    // decode bg and window pixel
+    fn decode_map(&mut self, row: u8, col: u8, map: u16) -> Pixel {
+        // map pixel
+        let row = row as u16;
+        let col = col as u16;
+        // tile pixel
+        let prow = row % 8;
+        let pcol = 7 - col % 8;
+        // tile index
+        let tile_index_address = map + 32 * (row / 8) + (col / 8);
+        let tile_index = self.read(tile_index_address);
+        // tile data (each row takes 2 bytes so a full 8x8 tile consists of 16 bytes)
+        let tile_data_select = self.lcdc.bg_window_data_select();
+        let tile_data_address = if tile_data_select == 0x8800 {
+            let tile_index: isize =
+                128 + unsafe { std::mem::transmute::<_, i8>(tile_index) } as isize;
+            tile_data_select + (tile_index as u16 * 16) + (prow * 2)
+        } else {
+            tile_data_select + (tile_index as u16 * 16) + (prow * 2)
+        };
+        //let tile_data_address = tile_data_select + (tile_index * 16) + (prow * 2);
+        let tile_data_lo = (self.read(tile_data_address) >> pcol) & 1;
+        let tile_data_hi = (self.read(tile_data_address + 1) >> pcol) & 1;
+        // decode color
+        let pal_index = (tile_data_hi << 1) | tile_data_lo;
+        let color_index = (self.palette.bgp >> (2 * pal_index)) & 0b11;
+        lcd::PALETTE[color_index as usize]
     }
 }
 
@@ -77,7 +107,7 @@ impl Update for PPU {
         self.stat.update(step, request);
 
         if line < 144 && line != self.stat.ly() {
-            self.draw_line(line);
+            self.draw_scanline(line);
         }
     }
 }
@@ -107,7 +137,7 @@ impl Device for PPU {
                 self.lcdc.write(address, data);
 
                 if !self.lcdc.lcd_on() {
-                    self.clear()
+                    self.clear_display()
                 }
             }
             0xff41 => self.stat.write(address, data),

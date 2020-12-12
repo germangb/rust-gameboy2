@@ -8,7 +8,8 @@ use log::info;
 use serde::{Deserialize, Serialize};
 
 // OAM DMA transfer duration
-const DURATION: u64 = 160;
+//const DURATION: u64 = 160;
+const DURATION: u64 = 0;
 
 #[derive(Default, Debug, Clone, Copy, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

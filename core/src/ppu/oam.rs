@@ -10,11 +10,12 @@ impl Device for OAMTable {
     const DEBUG_NAME: &'static str = "OAM Table";
 
     fn read(&self, address: u16) -> u8 {
-        todo!()
+        //todo!()
+        0x00
     }
 
     fn write(&mut self, address: u16, data: u8) {
-        todo!()
+        //todo!()
     }
 }
 

@@ -884,21 +884,29 @@ impl CPU {
             0xc0 => {
                 if !flag!(self.registers, Z) {
                     self.registers.pc = self.stack_pop(device);
+
+                    branch = true;
                 }
             }
             0xd0 => {
                 if !flag!(self.registers, C) {
                     self.registers.pc = self.stack_pop(device);
+
+                    branch = true;
                 }
             }
             0xc8 => {
                 if flag!(self.registers, Z) {
                     self.registers.pc = self.stack_pop(device);
+
+                    branch = true;
                 }
             }
             0xd8 => {
                 if flag!(self.registers, C) {
                     self.registers.pc = self.stack_pop(device);
+
+                    branch = true;
                 }
             }
             // RET

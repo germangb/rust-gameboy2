@@ -1,29 +1,56 @@
 use core::{
-    cartridge::{Cartridge, NoCartridge, Rom},
+    cartridge::{mbc1::MBC1, rom::Rom, Cartridge, NoCartridge},
     device::Device,
-    GameBoy,
+    Button, GameBoy,
 };
-use minifb::{Key, KeyRepeat, Window, WindowOptions};
+use log::LevelFilter;
+use minifb::{Key, KeyRepeat, Scale, Window, WindowOptions};
 use simple_logger::SimpleLogger;
 
 const WIDTH: usize = 160;
 const HEIGHT: usize = 144;
 
+fn process_key(window: &Window, gb: &mut GameBoy<impl Cartridge>, key: Key, button: Button) {
+    if window.is_key_pressed(key, KeyRepeat::No) {
+        gb.press(&button);
+    }
+    if window.is_key_released(key) {
+        gb.release(&button);
+    }
+}
+
 fn main() {
-    SimpleLogger::new().init().unwrap();
-    //pretty_env_logger::init();
+    // SimpleLogger::new()
+    //     .with_module_level("core", LevelFilter::Error)
+    //     .with_module_level("core::ppu", LevelFilter::Trace)
+    //     .init();
+    pretty_env_logger::formatted_timed_builder()
+        .filter(Some("core"), LevelFilter::Error)
+        .filter(Some("core::ppu"), LevelFilter::Trace)
+        .init();
     //json_env_logger::init();
 
     let mut opts = WindowOptions::default();
+    opts.scale = Scale::X2;
     let mut window = Window::new("GameBoy", 160, 144, opts).unwrap();
 
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
-    let cartridge = NoCartridge;
-    let cartridge = Rom::new(include_bytes!("tetris.gb").to_vec());
+    //let cartridge = NoCartridge;
+    let cartridge = MBC1::new(include_bytes!("tetris.gb").to_vec());
     let mut gb = GameBoy::new(cartridge);
+    //gb.skip_boot();
 
     while window.is_open() {
+        process_key(&window, &mut gb, Key::Z, Button::A);
+        process_key(&window, &mut gb, Key::X, Button::B);
+        process_key(&window, &mut gb, Key::Enter, Button::Start);
+        process_key(&window, &mut gb, Key::RightShift, Button::Select);
+        process_key(&window, &mut gb, Key::Left, Button::Left);
+        process_key(&window, &mut gb, Key::Right, Button::Right);
+        process_key(&window, &mut gb, Key::Up, Button::Up);
+        process_key(&window, &mut gb, Key::Down, Button::Down);
+
         gb.update_frame();
 
         if window.is_key_pressed(Key::M, KeyRepeat::No) {
@@ -32,10 +59,6 @@ fn main() {
 
         if window.is_key_pressed(Key::D, KeyRepeat::No) {
             dump_tile_data(&gb);
-        }
-
-        if window.is_key_pressed(Key::R, KeyRepeat::No) {
-            println!("LCDC={:08b}", gb.read(0xff40));
         }
 
         window

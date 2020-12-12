@@ -168,6 +168,7 @@ impl<C: Cartridge> Emulator<C> {
             0xff50          => self.boot.read(address),
             0xff51..=0xff55 => todo!("Game Boy color"),
             0xff68..=0xff6a => todo!("Game Boy color (DMA)"),
+            _               => 0x00,
             _               => todo!("IO register I have missed: {:#04x}", address),
         }
     }
@@ -198,6 +199,7 @@ impl<C: Cartridge> Emulator<C> {
             0xff50          => self.boot.write(address, data),
             0xff51..=0xff55 => todo!("Game Boy color"),
             0xff68..=0xff6a => todo!("Game Boy color (DMA)"),
+            _               => {},
             _               => todo!("IO register I have missed: {:#04x}", address),
         }
     }
@@ -258,6 +260,8 @@ impl<C: Cartridge> Device for Emulator<C> {
             }
             0xfe00..=0xfe9f if !oam_dma => self.ppu.read(address),
             0xfea0..=0xfeff if !oam_dma => {
+                return 0x00;
+
                 // emulate behavior depending on device & hardware revision
                 // https://gbdev.io/pandocs/#fea0-feff-range
                 todo!();
@@ -277,7 +281,7 @@ impl<C: Cartridge> Device for Emulator<C> {
             _ if oam_dma => {
                 error!("Illegal address accessed: {:#04x}", address);
                 error!("OAM Transfer in still in progress!");
-                self.stop_running();
+                //self.stop_running();
                 0xff
             }
             _ => unreachable!(),
@@ -302,6 +306,8 @@ impl<C: Cartridge> Device for Emulator<C> {
             }
             0xfe00..=0xfe9f if !oam_dma => self.ppu.write(address, data),
             0xfea0..=0xfeff => {
+                return;
+
                 // emulate behavior depending on device & hardware revision
                 // https://gbdev.io/pandocs/#fea0-feff-range
                 todo!();
@@ -319,7 +325,7 @@ impl<C: Cartridge> Device for Emulator<C> {
             _ if oam_dma => {
                 error!("Illegal address accessed: {:#04x}", address);
                 error!("OAM Transfer in still in progress!");
-                self.stop_running();
+                //self.stop_running();
             }
             _ => unreachable!(),
         }

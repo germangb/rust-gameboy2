@@ -81,6 +81,9 @@ impl STAT {
             return;
         }
 
+        // increment line
+        //self.ly += 1;
+
         if self.hblank_int() {
             request.lcd_stat = true;
         }
@@ -96,10 +99,6 @@ impl STAT {
 
         // increment line
         self.ly += 1;
-
-        if self.ly == self.lyc && self.lyc_int() {
-            request.lcd_stat = true;
-        }
 
         if self.ly == 144 {
             if self.vblank_int() {
@@ -125,10 +124,6 @@ impl STAT {
         // increment line
         self.ly += 1;
 
-        if self.ly == self.lyc && self.lyc_int() {
-            request.lcd_stat = true;
-        }
-
         if self.ly == 154 {
             if self.oam_int() {
                 request.lcd_stat = true;
@@ -143,6 +138,9 @@ impl Update for STAT {
     fn update(&mut self, step: &EmulationStep, request: &mut Request) {
         self.dots += step.clock_ticks;
 
+        // ly previous to update
+        let ly = self.ly;
+
         match self.mode() {
             Mode::SEARCH => self.search(request),
             Mode::PIXELS => self.pixels(request),
@@ -152,6 +150,10 @@ impl Update for STAT {
 
         if self.ly == self.lyc {
             self.stat |= 0b0000_0100;
+
+            if self.ly != ly && self.lyc_int() {
+                request.lcd_stat = true;
+            }
         } else {
             self.stat &= 0b1111_1011;
         }

@@ -47,11 +47,13 @@ impl Default for Joypad {
 impl Joypad {
     pub fn press(&mut self, button: &Button) {
         info!("Button press: {:?}", button);
+
         self.matrix |= unsafe { mem::transmute::<_, u8>(*button) };
     }
 
     pub fn release(&mut self, button: &Button) {
         info!("Button release: {:?}", button);
+
         self.matrix &= !unsafe { mem::transmute::<_, u8>(*button) };
     }
 }

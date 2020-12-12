@@ -960,7 +960,7 @@ impl CPU {
             }
         }
 
-        cycles::unprefixed(opcode)
+        cycles::unprefixed(opcode, branch)
     }
 
     fn exec<D: Device>(&mut self, device: &mut D) -> u64 {

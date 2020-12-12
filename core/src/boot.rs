@@ -53,10 +53,7 @@ impl Device for Boot {
             0x0000..=0x00ff => panic!("BOOT section disabled"),
             0xff50 => {
                 if self.enabled && data != 0 {
-                    info!(
-                        "BOOT section disabled by write of non-zero ({:#02x}) to {:#04x}",
-                        data, address
-                    );
+                    info!("BOOT section disabled: {:#02x}", data);
 
                     self.enabled = false;
                 }

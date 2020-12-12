@@ -20,6 +20,7 @@ fn main() {
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
     let cartridge = NoCartridge;
+    let cartridge = Rom::new(include_bytes!("tetris.gb").to_vec());
     let mut gb = GameBoy::new(cartridge);
 
     while window.is_open() {

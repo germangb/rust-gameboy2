@@ -131,13 +131,17 @@ impl<C: Cartridge> Emulator<C> {
     }
 
     fn update_frame(&mut self) {
-        // run until VBLANK
-        while self.read(0xff41) & 0b11 != 0b01 {
-            self.update();
-        }
-        // run until next OAM search
-        while self.read(0xff41) & 0b11 != 0b10 {
-            self.update();
+        if self.running.get() {
+            // run until VBLANK
+            while self.read(0xff41) & 0b11 != 0b01 {
+                self.update();
+            }
+            // run until next OAM search
+            while self.read(0xff41) & 0b11 != 0b10 {
+                self.update();
+            }
+        } else {
+            warn!("Emulator is no longer running")
         }
     }
 

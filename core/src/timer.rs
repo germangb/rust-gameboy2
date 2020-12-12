@@ -4,6 +4,7 @@ use crate::{
     utils::ClockDecimate,
     EmulationStep, Update, CLOCK,
 };
+use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -84,8 +85,14 @@ impl Device for Timer {
         match address {
             0xff04 => self.div = 0,
             0xff05 => self.tima = data,
-            0xff06 => self.tma = data,
+            0xff06 => {
+                info!("TMA = {:#08b} {:#02x}", data, data);
+
+                self.tma = data
+            }
             0xff07 => {
+                info!("TAC = {:#08b} {:#02x}", data, data);
+
                 self.tac = data;
                 self.update_tima_clock();
             }

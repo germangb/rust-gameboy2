@@ -1,4 +1,5 @@
 use crate::device::{invalid_read, invalid_write, Device};
+use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -55,6 +56,8 @@ impl Device for LCDC {
         if address != 0xff40 {
             invalid_write(address);
         }
+
+        info!("LCDC = {:#08b} {:#02x}", data, data);
 
         self.lcdc = data
     }

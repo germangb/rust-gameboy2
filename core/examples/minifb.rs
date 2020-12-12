@@ -10,15 +10,17 @@ const WIDTH: usize = 160;
 const HEIGHT: usize = 144;
 
 fn main() {
-    //SimpleLogger::new().init().unwrap();
+    SimpleLogger::new().init().unwrap();
+    //pretty_env_logger::init();
+    //json_env_logger::init();
 
-    let opts = WindowOptions::default();
+    let mut opts = WindowOptions::default();
     let mut window = Window::new("GameBoy", 160, 144, opts).unwrap();
 
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
-    //let mut gb = GameBoy::new(Rom::new(include_bytes!("tetris.gb").to_vec()));
-    let mut gb = GameBoy::new(NoCartridge);
+    let cartridge = NoCartridge;
+    let mut gb = GameBoy::new(cartridge);
 
     while window.is_open() {
         gb.update_frame();

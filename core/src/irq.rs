@@ -1,4 +1,5 @@
 use crate::device::{invalid_read, invalid_write, Device};
+use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -32,7 +33,11 @@ impl Device for IRQ {
     fn write(&mut self, address: u16, data: u8) {
         match address {
             0xff0f => self.fi = data,
-            0xffff => self.ie = data,
+            0xffff => {
+                info!("IE = {:#08b} {:#02x}", data, data);
+
+                self.ie = data
+            }
             _ => invalid_write(address),
         }
     }

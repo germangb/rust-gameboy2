@@ -2,6 +2,7 @@ use crate::{
     device::{invalid_read, invalid_write, Device},
     ppu::lcd::Pixel,
 };
+use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -39,7 +40,7 @@ impl Device for Scroll {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Window {
     pub wy: u8,
-    wx: u8,
+    pub wx: u8,
 }
 
 impl Device for Window {
@@ -55,8 +56,16 @@ impl Device for Window {
 
     fn write(&mut self, address: u16, data: u8) {
         match address {
-            0xff4a => self.wy = data,
-            0xff4b => self.wx = data,
+            0xff4a => {
+                info!("WY = {:#08b} {:#02x}", data, data);
+
+                self.wy = data
+            }
+            0xff4b => {
+                info!("WX = {:#08b} {:#02x}", data, data);
+
+                self.wx = data
+            }
             _ => invalid_write(address),
         }
     }
@@ -84,9 +93,21 @@ impl Device for Palette {
 
     fn write(&mut self, address: u16, data: u8) {
         match address {
-            0xff47 => self.bgp = data,
-            0xff48 => self.obp0 = data,
-            0xff49 => self.obp1 = data,
+            0xff47 => {
+                info!("BGP = {:#08b} {:#02x}", data, data);
+
+                self.bgp = data
+            }
+            0xff48 => {
+                info!("OBP0 = {:#08b} {:#02x}", data, data);
+
+                self.obp0 = data
+            }
+            0xff49 => {
+                info!("OBP1 = {:#08b} {:#02x}", data, data);
+
+                self.obp1 = data
+            }
             _ => invalid_write(address),
         }
     }

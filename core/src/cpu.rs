@@ -1,11 +1,11 @@
 use crate::{cartridge::Cartridge, device::Device};
-use log::info;
 pub use registers::Registers;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 #[macro_use]
 mod registers;
+mod cycles;
 
 #[derive(Default, Debug, Clone, Copy, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -54,8 +54,6 @@ impl CPU {
     }
 
     fn int_v<D: Device>(&mut self, v: u16, device: &mut D) {
-        info!("Jump to interrupt vector: {:#04x}", v);
-
         self.stack_push(self.registers.pc, device);
         self.registers.pc = v;
     }
@@ -455,7 +453,7 @@ impl CPU {
             0x2f => self.registers.a = self.sra_n(self.registers.a),
         }
 
-        4
+        cycles::prefixed(opcode)
     }
 
     fn exec_opcode<D: Device>(&mut self, device: &mut D, opcode: u8) -> u64 {
@@ -962,20 +960,16 @@ impl CPU {
             }
         }
 
-        4
+        cycles::unprefixed(opcode)
     }
 
     fn exec<D: Device>(&mut self, device: &mut D) -> u64 {
-        let pc = self.registers.pc;
         let opcode = self.fetch(device);
-
         if opcode == 0xcb {
             let cb = self.fetch(device);
 
-            info!("PC: {:#04x}, Opcode: {:#02x}, CB: {:#02x}", pc, opcode, cb);
             self.exec_opcode_cb(device, cb)
         } else {
-            info!("PC: {:#04x}, Opcode: {:#02x}", pc, opcode);
             self.exec_opcode(device, opcode)
         }
     }

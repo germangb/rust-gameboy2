@@ -3,6 +3,7 @@ use crate::{
     irq::Request,
     EmulationStep, Update, CLOCK,
 };
+use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -11,15 +12,18 @@ const PIXELS_DOTS: u64 = 230; // 168 to 291 cycles (40 to 60 us) depending on sp
 const HBLANK_DOTS: u64 = 147; // 85 to 208 dots (20 to 49 us) depending on previous mode 3 duration
 const VBLANK_DOTS: u64 = 4560; // 4560 dots (1087 us, 10 scanlines)
 
-const HBLANK_MODE: u8 = 0;
-const VBLANK_MODE: u8 = 1;
-const SEARCH_MODE: u8 = 2;
-const PIXELS_MODE: u8 = 3;
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub enum Mode {
+    HBLANK = 0,
+    VBLANK = 1,
+    SEARCH = 2,
+    PIXELS = 3,
+}
 
 #[derive(Default, Debug, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct STAT {
-    // Display clock (dots)
     dots: u64,
     stat: u8,
     ly: u8,
@@ -51,13 +55,13 @@ impl STAT {
         (self.stat & 0b0000_0100) != 0
     }
 
-    fn mode(&self) -> u8 {
-        (self.stat & 0b0000_0011)
+    fn mode(&self) -> Mode {
+        unsafe { std::mem::transmute(self.stat & 0b0000_0011) }
     }
 
-    fn set_mode(&mut self, mode: u8) {
+    fn set_mode(&mut self, mode: Mode) {
         self.stat &= 0b1111_1100;
-        self.stat |= mode & 0b11;
+        self.stat |= unsafe { std::mem::transmute::<_, u8>(mode) }
     }
 
     fn search(&mut self, request: &mut Request) {
@@ -67,7 +71,7 @@ impl STAT {
             return;
         }
 
-        self.set_mode(PIXELS_MODE);
+        self.set_mode(Mode::PIXELS);
     }
 
     fn pixels(&mut self, request: &mut Request) {
@@ -80,7 +84,7 @@ impl STAT {
         if self.hblank_int() {
             request.lcd_stat = true;
         }
-        self.set_mode(HBLANK_MODE);
+        self.set_mode(Mode::HBLANK);
     }
 
     fn hblank(&mut self, request: &mut Request) {
@@ -102,12 +106,12 @@ impl STAT {
                 request.lcd_stat = true;
             }
             request.vblank = true;
-            self.set_mode(VBLANK_MODE);
+            self.set_mode(Mode::VBLANK);
         } else {
             if self.oam_int() {
                 request.lcd_stat = true;
             }
-            self.set_mode(SEARCH_MODE);
+            self.set_mode(Mode::SEARCH);
         }
     }
 
@@ -130,7 +134,7 @@ impl STAT {
                 request.lcd_stat = true;
             }
             self.ly = 0;
-            self.set_mode(SEARCH_MODE);
+            self.set_mode(Mode::SEARCH);
         }
     }
 }
@@ -140,11 +144,10 @@ impl Update for STAT {
         self.dots += step.clock_ticks;
 
         match self.mode() {
-            SEARCH_MODE => self.search(request),
-            PIXELS_MODE => self.pixels(request),
-            HBLANK_MODE => self.hblank(request),
-            VBLANK_MODE => self.vblank(request),
-            _ => unreachable!(),
+            Mode::SEARCH => self.search(request),
+            Mode::PIXELS => self.pixels(request),
+            Mode::HBLANK => self.hblank(request),
+            Mode::VBLANK => self.vblank(request),
         }
 
         if self.ly == self.lyc {
@@ -174,7 +177,11 @@ impl Device for STAT {
                 self.stat |= data & 0b1111_1000;
             }
             0xff44 => todo!(),
-            0xff45 => self.lyc = data,
+            0xff45 => {
+                info!("LYC = {:#02x} {:#08b}", data, data);
+
+                self.lyc = data
+            }
             _ => invalid_write(address),
         }
     }

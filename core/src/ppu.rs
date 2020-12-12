@@ -37,7 +37,7 @@ impl PPU {
     }
 
     fn clear(&mut self) {
-        self.display.iter_mut().for_each(|p| *p = 0);
+        self.display.iter_mut().for_each(|p| *p = lcd::PALETTE[0]);
     }
 
     // render the given line to the display buffer
@@ -65,8 +65,7 @@ impl PPU {
 
             let pal_index = (tile_data_hi << 1) | tile_data_lo;
             let color_index = (self.palette.bgp >> pal_index) & 0b11;
-            self.display[display_offset + dot as usize] =
-                [0xffffff, 0x7f7f7f, 0x3f3f3f, 0x000000][color_index as usize];
+            self.display[display_offset + dot as usize] = lcd::PALETTE[color_index as usize];
         }
     }
 }
@@ -107,7 +106,6 @@ impl Device for PPU {
             0xff40 => {
                 self.lcdc.write(address, data);
 
-                // turn off display
                 if !self.lcdc.lcd_on() {
                     self.clear()
                 }

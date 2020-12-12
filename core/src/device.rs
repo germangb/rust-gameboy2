@@ -56,19 +56,26 @@ impl<D: Device> Device for LogDevice<D> {
     const DEBUG_NAME: &'static str = D::DEBUG_NAME;
 
     fn read(&self, address: u16) -> u8 {
-        info!("Read from device ({}): {:#04x}", D::DEBUG_NAME, address);
         let data = self.0.read(address);
-        info!("Data: {:#02x} ({})", data, data);
+        #[cfg(nope)]
+        info!(
+            "Read from \"{}\": {:#04x}, data: {:#02x}",
+            D::DEBUG_NAME,
+            address,
+            data
+        );
         data
     }
 
     fn write(&mut self, address: u16, data: u8) {
+        #[cfg(nope)]
         info!(
-            "Write {:#02x} to device ({}): {:#04x}",
+            "Write {:#02x} to device \"{}\": {:#04x}",
             data,
             D::DEBUG_NAME,
             address
         );
+
         self.0.write(address, data);
     }
 }

@@ -3,6 +3,7 @@ use crate::{
     irq::Request,
     EmulationStep, Update,
 };
+use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -50,6 +51,8 @@ impl Device for OamDma {
         if address != 0xff46 {
             invalid_write(address);
         }
+
+        info!("OAM DMA = {:#02x}", self.dma);
 
         self.dma = data;
         self.clocks = DURATION;

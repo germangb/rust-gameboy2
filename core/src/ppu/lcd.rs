@@ -1,5 +1,7 @@
 use educe::Educe;
 
+pub const PALETTE: [Pixel; 4] = [0x7e8416, 0x577b46, 0x385d49, 0x2e463d];
+
 pub const WIDTH: usize = 160;
 pub const HEIGHT: usize = 144;
 

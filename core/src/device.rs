@@ -1,10 +1,8 @@
 use byteorder::{ByteOrder, LittleEndian};
-use educe::Educe;
-use log::{error, info};
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
+use log::error;
 
 type Endianness = LittleEndian;
+
 pub type Address = u16;
 pub type Data = u8;
 
@@ -44,40 +42,6 @@ pub(crate) fn invalid_write(address: Address) {
     error!("Write to invalid address: {:#04x}", address);
     #[cfg(debug_assertions)]
     panic!();
-}
-
-// Adds logging (using the log crate) to trace reads and writes.
-#[derive(Default, Debug, Clone, Eq, PartialEq, Hash, Educe)]
-#[educe(Deref, DerefMut)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub(crate) struct LogDevice<D>(#[educe(Deref, DerefMut)] pub D);
-
-impl<D: Device> Device for LogDevice<D> {
-    const DEBUG_NAME: &'static str = D::DEBUG_NAME;
-
-    fn read(&self, address: u16) -> u8 {
-        let data = self.0.read(address);
-        #[cfg(nope)]
-        info!(
-            "Read from \"{}\": {:#04x}, data: {:#02x}",
-            D::DEBUG_NAME,
-            address,
-            data
-        );
-        data
-    }
-
-    fn write(&mut self, address: u16, data: u8) {
-        #[cfg(nope)]
-        info!(
-            "Write {:#02x} to device \"{}\": {:#04x}",
-            data,
-            D::DEBUG_NAME,
-            address
-        );
-
-        self.0.write(address, data);
-    }
 }
 
 #[cfg(test)]

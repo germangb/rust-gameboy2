@@ -22,7 +22,7 @@ use crate::{
     boot::Boot,
     cartridge::Cartridge,
     cpu::CPU,
-    device::{Address, Device, LogDevice},
+    device::{Address, Device},
     dma::OamDma,
     high_ram::HighRAM,
     irq::IRQ,
@@ -77,16 +77,16 @@ struct Emulator<C> {
     // borrow checker workaround
     // cpu will be leaving the Option temporarily
     cpu: Option<CPU>,
-    cartridge: LogDevice<C>,
-    boot: LogDevice<Boot>,
-    oam_dma: LogDevice<OamDma>,
-    joypad: LogDevice<Joypad>,
-    ppu: LogDevice<PPU>,
-    timer: LogDevice<Timer>,
-    work_ram: LogDevice<WorkRAM>,
-    high_ram: LogDevice<HighRAM>,
-    irq: LogDevice<IRQ>,
-    apu: LogDevice<APU>,
+    cartridge: C,
+    boot: Boot,
+    oam_dma: OamDma,
+    joypad: Joypad,
+    ppu: PPU,
+    timer: Timer,
+    work_ram: WorkRAM,
+    high_ram: HighRAM,
+    irq: IRQ,
+    apu: APU,
 }
 
 impl<C> Emulator<C> {
@@ -94,7 +94,7 @@ impl<C> Emulator<C> {
         Self {
             running: Cell::new(true),
             cpu: Some(Default::default()),
-            cartridge: LogDevice(cartridge),
+            cartridge,
             boot: Default::default(),
             oam_dma: Default::default(),
             joypad: Default::default(),

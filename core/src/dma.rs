@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 // OAM DMA transfer duration
 const DURATION: u64 = 160;
 
-#[derive(Default, Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Default, Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct OamDma {
     dma: u8,

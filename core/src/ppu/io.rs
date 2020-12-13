@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 pub mod lcdc;
 pub mod stat;
 
-#[derive(Default, Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Default, Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Scroll {
     pub scy: u8,
@@ -44,7 +44,7 @@ impl Device for Scroll {
     }
 }
 
-#[derive(Default, Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Default, Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Window {
     pub wy: u8,
@@ -79,7 +79,7 @@ impl Device for Window {
     }
 }
 
-#[derive(Default, Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Default, Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Palette {
     pub bgp: u8,

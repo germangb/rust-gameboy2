@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 const OFFSET: usize = 0xff80;
 const SIZE: usize = 0x27;
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct HighRAM {
     // serde doesn't support big arrays so use a boxed slice instead of a boxed big array :(

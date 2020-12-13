@@ -86,15 +86,15 @@ impl Device for MBC1 {
             // ROM/RAM Mode. (See below.)
             0x4000..=0x5fff => match self.mode {
                 Mode::Rom => {
+                    info!("Selected ROM bank (upper 2 bits): {}", data);
+
                     self.rom_bank &= 0x1f;
                     self.rom_bank |= (data as usize & 0x3) << 5;
-
-                    info!("Selected ROM bank (upper 2 bits): {}", self.rom_bank);
                 }
                 Mode::Ram => {
-                    self.ram_bank = data as usize & 0x3;
+                    info!("Selected RAM bank (upper 2 bits): {}", data);
 
-                    info!("Selected RAM bank: {}", self.ram_bank);
+                    self.ram_bank = data as usize & 0x3;
                 }
             },
             0x6000..=0x7fff => {

@@ -19,7 +19,7 @@ bitflags! {
 }
 
 #[repr(C)]
-#[derive(Default, Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Default, Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Entry {
     pub y: u8,
@@ -28,7 +28,7 @@ pub struct Entry {
     pub flags: Flags,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct OAM {
     table: Box<[Entry]>,

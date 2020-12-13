@@ -13,15 +13,15 @@ const HBLANK_DOTS: u64 = 147; // 85 to 208 dots (20 to 49 us) depending on previ
 const VBLANK_DOTS: u64 = 4560; // 4560 dots (1087 us, 10 scanlines)
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub enum Mode {
+#[derive(Debug, Clone, Eq, PartialEq)]
+enum Mode {
     HBLANK = 0,
     VBLANK = 1,
     SEARCH = 2,
     PIXELS = 3,
 }
 
-#[derive(Default, Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Default, Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct STAT {
     dots: u64,
@@ -33,6 +33,10 @@ pub struct STAT {
 impl STAT {
     pub fn ly(&self) -> u8 {
         self.ly
+    }
+
+    fn mode(&self) -> Mode {
+        unsafe { std::mem::transmute(self.stat & 0b0000_0011) }
     }
 
     fn lyc_int(&self) -> bool {
@@ -53,10 +57,6 @@ impl STAT {
 
     fn coincidence_flag(&self) -> bool {
         (self.stat & 0b0000_0100) != 0
-    }
-
-    fn mode(&self) -> Mode {
-        unsafe { std::mem::transmute(self.stat & 0b0000_0011) }
     }
 
     fn set_mode(&mut self, mode: Mode) {

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 mod registers;
 mod cycles;
 
-#[derive(Default, Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Default, Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CPU {
     registers: Registers,
@@ -23,6 +23,14 @@ impl CPU {
 
     pub fn registers_mut(&mut self) -> &mut Registers {
         &mut self.registers
+    }
+
+    pub fn halt(&self) -> bool {
+        self.halt
+    }
+
+    pub fn ime(&self) -> bool {
+        self.ime
     }
 
     pub(super) fn update<D: Device>(&mut self, device: &mut D) -> u64 {

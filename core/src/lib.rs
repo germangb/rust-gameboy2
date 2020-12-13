@@ -71,6 +71,7 @@ trait Update {
     fn update(&mut self, step: &EmulationStep, request: &mut Request);
 }
 
+#[derive(Default, Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 struct Emulator<C> {
     running: Cell<bool>,
@@ -213,18 +214,28 @@ impl<C: Cartridge> Emulator<C> {
         let mut fi = self.read(0xff0f);
 
         if request.vblank {
+            info!("Request VBLANK interrupt");
+
             fi |= 0b0000_0001
         }
         if request.lcd_stat {
+            info!("Request LCDC interrupt");
+
             fi |= 0b0000_0010
         }
         if request.timer {
+            info!("Request TIMER interrupt");
+
             fi |= 0b0000_0100
         }
         if request.serial {
+            info!("Request SERIAL interrupt");
+
             fi |= 0b0000_1000
         }
         if request.joypad {
+            info!("Request JOYPAD interrupt");
+
             fi |= 0b0001_0000
         }
 

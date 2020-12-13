@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 /// let mut gb = GameBoy::new(NoCartridge);
 ///
 /// // mario jump :)
-/// gb.joypad_mut().press(&Button::Right);
-/// gb.joypad_mut().press(&Button::A);
+/// gb.press(&Button::Right);
+/// gb.press(&Button::A);
 ///
 /// let lcd = gb.ppu().display();
 /// ```

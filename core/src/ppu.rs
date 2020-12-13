@@ -18,7 +18,7 @@ pub mod lcd;
 mod oam;
 mod video_ram;
 
-#[derive(Default, Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Default, Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PPU {
     #[cfg_attr(feature = "serde", serde(skip))]

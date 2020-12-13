@@ -11,21 +11,41 @@ type Error = Box<dyn std::error::Error>;
 
 #[derive(StructOpt, Debug)]
 struct App {
-    /// ROM path.
     #[structopt(short, long)]
     path: Option<PathBuf>,
 
-    /// Skip boot sequence.
-    #[structopt(short, long)]
+    #[structopt(long)]
     skip_boot: bool,
 
-    /// Scaling x2.
-    #[structopt(short, long)]
-    x2: bool,
+    #[structopt(short, long, default_value = "2")]
+    scale: u8,
 
-    /// verbosity flag
     #[structopt(short, long)]
     verbose: bool,
+}
+
+impl App {
+    fn window_title(&self) -> String {
+        let mut title = "GameBoy".to_string();
+        if let Some(path) = &self.path {
+            title.push_str(&format!(" ({})", path.display()))
+        }
+        title
+    }
+
+    fn window_scale(&self) -> Scale {
+        match self.scale {
+            1 => Scale::X1,
+            4 => Scale::X4,
+            8 => Scale::X8,
+            scale => {
+                if scale != 2 {
+                    warn!("Unsupported display scaling (x{}). Fallback to x2.", scale)
+                }
+                Scale::X2
+            }
+        }
+    }
 }
 
 fn read_rom(path: &Path) -> Result<Vec<u8>, Error> {
@@ -34,15 +54,15 @@ fn read_rom(path: &Path) -> Result<Vec<u8>, Error> {
 
 fn run(app: &App, cartridge: impl Cartridge) {
     let mut opts = WindowOptions::default();
-    if app.x2 {
-        opts.scale = Scale::X2;
-    }
-    let mut window = Window::new("GameBoy", 160, 144, opts).unwrap();
+    opts.scale = app.window_scale();
+    let mut window = Window::new(&app.window_title(), 160, 144, opts).unwrap();
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
     let mut gb = GameBoy::new(cartridge);
 
     if app.skip_boot {
+        info!("Skip BOOT sequence.");
+
         gb.skip_boot();
     }
 
@@ -78,22 +98,14 @@ fn main() -> Result<(), Error> {
 
     if app.verbose {
         pretty_env_logger::formatted_timed_builder()
-            .filter(Some("core"), LevelFilter::Trace)
-            .filter(Some("core::cpu"), LevelFilter::Warn)
+            .filter(Some("core"), LevelFilter::Off)
+            .filter(Some(module_path!()), LevelFilter::Trace)
             .init();
     }
 
-    info!("App = {:?}", app);
-
     if let Some(path) = &app.path {
-        let ron = read_rom(path)?;
-
-        info!("ROM read: {} bytes", ron.len());
-
-        run(&app, MBC3::new(ron));
+        run(&app, MBC3::new(read_rom(path)?));
     } else {
-        warn!("No ROM selected");
-
         run(&app, NoCartridge);
     }
 

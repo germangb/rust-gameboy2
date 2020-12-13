@@ -3,7 +3,7 @@ use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct Request {
     pub vblank: bool,
     pub lcd_stat: bool,
@@ -12,7 +12,7 @@ pub struct Request {
     pub timer: bool,
 }
 
-#[derive(Default, Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Default, Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct IRQ {
     fi: u8,

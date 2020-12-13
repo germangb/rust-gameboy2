@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 const DIV: u64 = 16384;
 const TIMA: &[u64] = &[1024, 16, 64, 256];
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Timer {
     div: u8,

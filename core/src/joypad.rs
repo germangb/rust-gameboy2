@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::mem;
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[rustfmt::skip]
 enum Select {
@@ -15,7 +15,7 @@ enum Select {
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[rustfmt::skip]
 pub enum Button {
     A      = 0b0000_0001,
@@ -28,7 +28,7 @@ pub enum Button {
     Down   = 0b1000_0000,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Joypad {
     select: Select,

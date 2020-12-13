@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 const OFFSET: usize = 0xc000;
 const SIZE: usize = 0x2000;
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct WorkRAM {
     // serde doesn't support big arrays so use a boxed slice instead of a boxed big array :(

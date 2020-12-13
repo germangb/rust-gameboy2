@@ -9,6 +9,7 @@ use crate::{
     },
     EmulationStep, Update,
 };
+use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -213,6 +214,8 @@ impl Device for PPU {
                 self.lcdc.write(address, data);
 
                 if !self.lcdc.lcd_on() {
+                    info!("Turn off LCD display");
+
                     self.clear_display()
                 }
             }

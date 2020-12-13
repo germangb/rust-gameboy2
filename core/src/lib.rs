@@ -198,13 +198,13 @@ impl<C: Cartridge> Emulator<C> {
             }
             0xff47..=0xff4b => self.ppu.write(address, data),
             0xff4f          => {
-                warn!("Game Boy Color (VRAM Bank Select)");
+                warn!("Game Boy Color (VRAM Bank Select): {:#x}", data);
             },
             0xff50          => self.boot.write(address, data),
             0xff51..=0xff55 => todo!("Game Boy color"),
             0xff68..=0xff6a => todo!("Game Boy color (DMA)"),
             _               => {
-                warn!("Unknown IO address: {:#04x}, data: {:#02x}", address, data);
+                warn!("Unknown IO address: {:#04x}, data: {:#x}", address, data);
             },
         }
     }

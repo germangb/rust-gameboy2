@@ -1,2 +1,2 @@
 [workspace]
-members = ["core", "camera"]
+members = ["core", "camera", "wasm"]

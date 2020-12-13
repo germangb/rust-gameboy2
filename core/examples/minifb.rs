@@ -29,22 +29,19 @@ fn main() {
         .filter(Some("core"), LevelFilter::Warn)
         .filter(Some("core::joypad"), LevelFilter::Off)
         .filter(Some("core::boot"), LevelFilter::Trace)
-        .filter(Some("core::cpu"), LevelFilter::Warn)
         .filter(Some("core::irq"), LevelFilter::Trace)
-        .filter(Some("core::cartridge"), LevelFilter::Warn)
-        .filter(Some("core::ppu"), LevelFilter::Warn)
+        .filter(Some("core::cartridge"), LevelFilter::Trace)
         .init();
     //json_env_logger::init();
 
     let mut opts = WindowOptions::default();
     opts.scale = Scale::X2;
     let mut window = Window::new("GameBoy", 160, 144, opts).unwrap();
-    window.set_position(1980/2 - 160/2, 1080/2 - 144/4);
 
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
     //let cartridge = NoCartridge;
-    let cartridge = MBC3::new(include_bytes!("gold.gbc").to_vec());
+    let cartridge = MBC3::new(include_bytes!("tetris.gb").to_vec());
     let mut gb = GameBoy::new(cartridge);
     //gb.skip_boot();
 

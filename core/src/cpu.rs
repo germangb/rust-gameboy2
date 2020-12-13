@@ -1,4 +1,5 @@
 use crate::{cartridge::Cartridge, device::Device};
+use log::info;
 pub use registers::Registers;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -972,12 +973,17 @@ impl CPU {
     }
 
     fn exec<D: Device>(&mut self, device: &mut D) -> u64 {
+        let pc = self.registers.pc;
         let opcode = self.fetch(device);
         if opcode == 0xcb {
             let cb = self.fetch(device);
 
+            info!("Opcode: (CB) {:02x}, {:02x?}", cb, self.registers);
+
             self.exec_opcode_cb(device, cb)
         } else {
+            info!("Opcode: {:02x}, {:02x?}", opcode, self.registers);
+
             self.exec_opcode(device, opcode)
         }
     }

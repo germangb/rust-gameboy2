@@ -1,7 +1,7 @@
 use crate::{
     device::{invalid_read, invalid_write, Device},
     irq::Request,
-    EmulationStep, Update, CLOCK,
+    EmulationStep, CLOCK,
 };
 use log::info;
 #[cfg(feature = "serde")]
@@ -132,11 +132,9 @@ impl STAT {
             self.set_mode(Mode::SEARCH);
         }
     }
-}
 
-impl Update for STAT {
-    fn update(&mut self, step: &EmulationStep, request: &mut Request) {
-        self.dots += step.clock_ticks;
+    pub fn update(&mut self, ticks: u64, request: &mut Request) {
+        self.dots += ticks;
 
         // ly previous to update
         let ly = self.ly;

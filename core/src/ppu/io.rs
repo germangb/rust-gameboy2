@@ -29,8 +29,16 @@ impl Device for Scroll {
 
     fn write(&mut self, address: u16, data: u8) {
         match address {
-            0xff42 => self.scy = data,
-            0xff43 => self.scx = data,
+            0xff42 => {
+                info!("SCY = {:#02x}", data);
+
+                self.scy = data
+            }
+            0xff43 => {
+                info!("SCX = {:#02x}", data);
+
+                self.scx = data
+            }
             _ => invalid_write(address),
         }
     }
@@ -57,12 +65,12 @@ impl Device for Window {
     fn write(&mut self, address: u16, data: u8) {
         match address {
             0xff4a => {
-                info!("WY = {:#08b} {:#02x}", data, data);
+                info!("WY = {:#02x}", data);
 
                 self.wy = data
             }
             0xff4b => {
-                info!("WX = {:#08b} {:#02x}", data, data);
+                info!("WX = {:#02x}", data);
 
                 self.wx = data
             }
@@ -77,6 +85,22 @@ pub struct Palette {
     pub bgp: u8,
     pub obp0: u8,
     pub obp1: u8,
+}
+
+fn log_pal(pal: u8) -> String {
+    const S: [&str; 4] = ["░", "▒", "▓", "█"];
+
+    format!(
+        "{:02b}{}{:02b}{}{:02b}{}{:02b}{}",
+        pal & 0b11,
+        S[pal as usize & 0b11],
+        pal >> 2 & 0b11,
+        S[(pal as usize) >> 2 & 0b11],
+        pal >> 4 & 0b11,
+        S[(pal as usize) >> 4 & 0b11],
+        pal >> 6 & 0b11,
+        S[(pal as usize) >> 6 & 0b11],
+    )
 }
 
 impl Device for Palette {
@@ -94,17 +118,17 @@ impl Device for Palette {
     fn write(&mut self, address: u16, data: u8) {
         match address {
             0xff47 => {
-                info!("BGP = {:#08b} {:#02x}", data, data);
+                info!("BGP = {:#08b} ({})", data, log_pal(data));
 
                 self.bgp = data
             }
             0xff48 => {
-                info!("OBP0 = {:#08b} {:#02x}", data, data);
+                info!("OBP0 = {:#08b} ({})", data, log_pal(data));
 
                 self.obp0 = data
             }
             0xff49 => {
-                info!("OBP1 = {:#08b} {:#02x}", data, data);
+                info!("OBP1 = {:#08b} ({})", data, log_pal(data));
 
                 self.obp1 = data
             }

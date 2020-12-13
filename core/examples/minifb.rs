@@ -1,16 +1,17 @@
 use core::{
-    cartridge::{mbc1::MBC1, rom::Rom, Cartridge, NoCartridge},
+    cartridge::{mbc1::MBC1, rom::ROM, Cartridge, NoCartridge},
     device::Device,
     Button, GameBoy,
 };
-use log::LevelFilter;
+use log::{info, LevelFilter};
 use minifb::{Key, KeyRepeat, Scale, Window, WindowOptions};
 use simple_logger::SimpleLogger;
+use std::ops::{Range, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
 
 const WIDTH: usize = 160;
 const HEIGHT: usize = 144;
 
-fn process_key(window: &Window, gb: &mut GameBoy<impl Cartridge>, key: Key, button: Button) {
+fn handle_key(window: &Window, gb: &mut GameBoy<impl Cartridge>, key: Key, button: Button) {
     if window.is_key_pressed(key, KeyRepeat::No) {
         gb.press(&button);
     }
@@ -25,7 +26,12 @@ fn main() {
     //     .with_module_level("core::ppu", LevelFilter::Trace)
     //     .init();
     pretty_env_logger::formatted_timed_builder()
-        .filter(Some("core"), LevelFilter::Error)
+        .filter(Some("core"), LevelFilter::Warn)
+        .filter(Some("core::joypad"), LevelFilter::Off)
+        .filter(Some("core::boot"), LevelFilter::Trace)
+        .filter(Some("core::cpu"), LevelFilter::Warn)
+        .filter(Some("core::irq"), LevelFilter::Trace)
+        .filter(Some("core::cartridge"), LevelFilter::Warn)
         .filter(Some("core::ppu"), LevelFilter::Trace)
         .init();
     //json_env_logger::init();
@@ -37,19 +43,19 @@ fn main() {
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
     //let cartridge = NoCartridge;
-    let cartridge = MBC1::new(include_bytes!("tetris.gb").to_vec());
+    let cartridge = MBC1::new(include_bytes!("zelda.gb").to_vec());
     let mut gb = GameBoy::new(cartridge);
-    //gb.skip_boot();
+    gb.skip_boot();
 
     while window.is_open() {
-        process_key(&window, &mut gb, Key::Z, Button::A);
-        process_key(&window, &mut gb, Key::X, Button::B);
-        process_key(&window, &mut gb, Key::Enter, Button::Start);
-        process_key(&window, &mut gb, Key::RightShift, Button::Select);
-        process_key(&window, &mut gb, Key::Left, Button::Left);
-        process_key(&window, &mut gb, Key::Right, Button::Right);
-        process_key(&window, &mut gb, Key::Up, Button::Up);
-        process_key(&window, &mut gb, Key::Down, Button::Down);
+        handle_key(&window, &mut gb, Key::Z, Button::A);
+        handle_key(&window, &mut gb, Key::X, Button::B);
+        handle_key(&window, &mut gb, Key::Enter, Button::Start);
+        handle_key(&window, &mut gb, Key::RightShift, Button::Select);
+        handle_key(&window, &mut gb, Key::Left, Button::Left);
+        handle_key(&window, &mut gb, Key::Right, Button::Right);
+        handle_key(&window, &mut gb, Key::Up, Button::Up);
+        handle_key(&window, &mut gb, Key::Down, Button::Down);
 
         gb.update_frame();
 
@@ -57,13 +63,35 @@ fn main() {
             dump_tile_map(&gb);
         }
 
-        if window.is_key_pressed(Key::D, KeyRepeat::No) {
-            dump_tile_data(&gb);
+        if window.is_key_pressed(Key::V, KeyRepeat::No) {
+            dump(&gb, 0x8000..=0x9fff);
+        }
+
+        if window.is_key_pressed(Key::O, KeyRepeat::No) {
+            dump(&gb, 0xfe00..=0xfe9f);
+        }
+
+        if window.is_key_pressed(Key::C, KeyRepeat::No) {
+            println!("{:04x?}", gb.cpu().registers());
         }
 
         window
             .update_with_buffer(&gb.display()[..], 160, 144)
             .unwrap();
+    }
+}
+
+fn dump(gb: &GameBoy<impl Cartridge>, range: RangeInclusive<u16>) {
+    let mut line = String::new();
+    for (i, a) in range.enumerate() {
+        if i % 16 == 0 {
+            line.clear();
+            line.push_str(&format!("{:04x} | ", a));
+        }
+        line.push_str(&format!("{:02x} ", gb.read(a)));
+        if (i + 1) % 16 == 0 {
+            println!("{}", line);
+        }
     }
 }
 
@@ -82,22 +110,6 @@ fn dump_tile_map(gb: &GameBoy<impl Cartridge>) {
             print!("{:02x} ", d);
         }
         if (i + 1) % 32 == 0 {
-            println!();
-        }
-    }
-    println!("```");
-}
-
-fn dump_tile_data(gb: &GameBoy<impl Cartridge>) {
-    println!("TILE DATA");
-    println!("===");
-    println!("```");
-    for (i, a) in (0x8000..=0x8fff).enumerate() {
-        if i % 16 == 0 {
-            print!("{:04x} | ", a);
-        }
-        print!("{:02x} ", gb.read(a));
-        if (i + 1) % 0x10 == 0 {
             println!();
         }
     }

@@ -18,6 +18,14 @@ impl LCDC {
         (self.lcdc & 0b0010_0000) != 0
     }
 
+    pub fn obj_enable(&self) -> bool {
+        (self.lcdc & 0b0000_0010) != 0
+    }
+
+    pub fn obj_size(&self) -> bool {
+        (self.lcdc & 0b0000_0100) != 0
+    }
+
     // Returns the address where the window map.
     // According to LCDC.6
     pub fn window_map_select(&self) -> u16 {
@@ -65,7 +73,7 @@ impl Device for LCDC {
             invalid_write(address);
         }
 
-        info!("LCDC = {:#08b} {:#02x}", data, data);
+        info!("LCDC = {:#08b}", data);
 
         self.lcdc = data
     }

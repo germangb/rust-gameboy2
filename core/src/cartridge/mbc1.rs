@@ -79,7 +79,7 @@ impl Device for MBC1 {
                 self.rom_bank &= 0x60;
                 self.rom_bank |= data as usize & 0x1f;
 
-                info!("Selected ROM bank: {}", self.rom_bank);
+                info!("Selected ROM bank (lower 5 bits): {}", self.rom_bank);
             }
             // This 2bit register can be used to select a RAM Bank in range from 00-03h, or to
             // specify the upper two bits (Bit 5-6) of the ROM Bank number, depending on the current
@@ -89,7 +89,7 @@ impl Device for MBC1 {
                     self.rom_bank &= 0x1f;
                     self.rom_bank |= (data as usize & 0x3) << 5;
 
-                    info!("Selected ROM bank: {}", self.rom_bank);
+                    info!("Selected ROM bank (upper 2 bits): {}", self.rom_bank);
                 }
                 Mode::Ram => {
                     self.ram_bank = data as usize & 0x3;

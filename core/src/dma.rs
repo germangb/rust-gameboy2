@@ -8,8 +8,7 @@ use log::info;
 use serde::{Deserialize, Serialize};
 
 // OAM DMA transfer duration
-//const DURATION: u64 = 160;
-const DURATION: u64 = 0;
+const DURATION: u64 = 160;
 
 #[derive(Default, Debug, Clone, Copy, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -53,7 +52,7 @@ impl Device for OamDma {
             invalid_write(address);
         }
 
-        info!("OAM DMA = {:#02x}", self.dma);
+        info!("OAM DMA: {:#02x}", self.dma);
 
         self.dma = data;
         self.clocks = DURATION;
@@ -63,31 +62,33 @@ impl Device for OamDma {
 #[cfg(test)]
 mod test {
     use super::OamDma;
-    use crate::{device::Device, EmulationStep, Update};
+    use crate::{cartridge::NoCartridge, device::Device, EmulationStep, Emulator, Update};
 
     #[test]
     fn oam_dma_start_address() {
-        let mut dma = OamDma::default();
-        dma.write(0xff46, 0xab);
+        let mut emu = Emulator::new(NoCartridge);
+        emu.write(0xff46, 0xab);
 
-        assert_eq!(0xab00, dma.start_address());
+        assert_eq!(0xab00, emu.oam_dma.start_address());
     }
 
     #[test]
     fn oam_dma_time() {
-        let mut dma = OamDma::default();
-        let mut states = vec![dma.is_active()];
+        let mut emu = Emulator::new(NoCartridge);
+        let mut states = vec![emu.oam_dma.is_active()];
 
-        dma.write(0xff46, 0xab);
-        states.push(dma.is_active());
+        emu.write(0xff46, 0xab);
+        states.push(emu.oam_dma.is_active());
 
         for _ in 0..160 - 4 {
-            dma.update(&EmulationStep { clock_ticks: 1 }, &mut Default::default());
+            emu.oam_dma
+                .update(&EmulationStep { clock_ticks: 1 }, &mut Default::default());
         }
 
-        states.push(dma.is_active());
-        dma.update(&EmulationStep { clock_ticks: 4 }, &mut Default::default());
-        states.push(dma.is_active());
+        states.push(emu.oam_dma.is_active());
+        emu.oam_dma
+            .update(&EmulationStep { clock_ticks: 4 }, &mut Default::default());
+        states.push(emu.oam_dma.is_active());
 
         assert_eq!(vec![false, true, true, false], states);
     }

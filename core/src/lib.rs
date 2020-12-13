@@ -154,7 +154,7 @@ impl<C: Cartridge> Emulator<C> {
         match address {
             0xff00          => self.joypad.read(address),
             0xff01..=0xff02 => {
-                warn!("Port/Mode");
+                //warn!("Port/Mode not implemented");
                 0
             },
             0xff04..=0xff07 => self.timer.read(address),
@@ -168,8 +168,10 @@ impl<C: Cartridge> Emulator<C> {
             0xff50          => self.boot.read(address),
             0xff51..=0xff55 => todo!("Game Boy color"),
             0xff68..=0xff6a => todo!("Game Boy color (DMA)"),
-            _               => 0x00,
-            _               => todo!("IO register I have missed: {:#04x}", address),
+            _               => {
+                warn!("Unknown IO address: {:#04x}", address);
+                0xff
+            },
         }
     }
 
@@ -178,7 +180,7 @@ impl<C: Cartridge> Emulator<C> {
         match address {
             0xff00          => self.joypad.write(address, data),
             0xff01..=0xff02 => {
-                warn!("Port/Mode");
+                //warn!("Port/Mode not implemented");
             },
             0xff04..=0xff07 => self.timer.write(address, data),
             0xff0f          => self.irq.write(address, data),
@@ -199,8 +201,9 @@ impl<C: Cartridge> Emulator<C> {
             0xff50          => self.boot.write(address, data),
             0xff51..=0xff55 => todo!("Game Boy color"),
             0xff68..=0xff6a => todo!("Game Boy color (DMA)"),
-            _               => {},
-            _               => todo!("IO register I have missed: {:#04x}", address),
+            _               => {
+                warn!("Unknown IO address: {:#04x}, data: {:#02x}", address, data);
+            },
         }
     }
 
@@ -243,24 +246,23 @@ impl<C: Cartridge> Device for Emulator<C> {
     const DEBUG_NAME: &'static str = "Emulator";
 
     fn read(&self, address: u16) -> u8 {
-        let oam_dma = self.oam_dma.is_active();
         let boot = self.boot.is_enabled();
 
         match address {
             0x0000..=0x00ff if boot => self.boot.read(address),
-            0x0000..=0x7fff if !oam_dma => self.cartridge.read(address),
-            0x8000..=0x9fff if !oam_dma => self.ppu.read(address),
-            0xa000..=0xbfff if !oam_dma => self.cartridge.read(address),
-            0xc000..=0xdfff if !oam_dma => self.work_ram.read(address),
+            0x0000..=0x7fff => self.cartridge.read(address),
+            0x8000..=0x9fff => self.ppu.read(address),
+            0xa000..=0xbfff => self.cartridge.read(address),
+            0xc000..=0xdfff => self.work_ram.read(address),
             // Nintendo says use of this area is prohibited.
             0xe000..=0xfdff => {
                 warn!("Echo RAM");
                 warn!("Nintendo says use of this area is prohibited");
                 self.read(address - 0xe000 + 0xc000)
             }
-            0xfe00..=0xfe9f if !oam_dma => self.ppu.read(address),
-            0xfea0..=0xfeff if !oam_dma => {
-                return 0x00;
+            0xfe00..=0xfe9f => self.ppu.read(address),
+            0xfea0..=0xfeff => {
+                return 0x42;
 
                 // emulate behavior depending on device & hardware revision
                 // https://gbdev.io/pandocs/#fea0-feff-range
@@ -271,40 +273,29 @@ impl<C: Cartridge> Device for Emulator<C> {
                 self.stop_running();
                 0x00
             }
-            0xfea0..=0xfeff => 0xff,
-            0xff00..=0xff7f if !oam_dma => self.read_io(address),
+            0xff00..=0xff7f => self.read_io(address),
             0xff80..=0xfffe => self.high_ram.read(address),
-            0xffff if !oam_dma => self.irq.read(address),
-
-            // illegal access during OAM DMA transfer
-            // during this process, the GB is only allowed to access HRAM
-            _ if oam_dma => {
-                error!("Illegal address accessed: {:#04x}", address);
-                error!("OAM Transfer in still in progress!");
-                //self.stop_running();
-                0xff
-            }
+            0xffff => self.irq.read(address),
             _ => unreachable!(),
         }
     }
 
     fn write(&mut self, address: u16, data: u8) {
-        let oam_dma = self.oam_dma.is_active();
         let boot = self.boot.is_enabled();
 
         match address {
             0x0000..=0x00ff if boot => self.boot.write(address, data),
-            0x0000..=0x7fff if !oam_dma => self.cartridge.write(address, data),
-            0x8000..=0x9fff if !oam_dma => self.ppu.write(address, data),
-            0xa000..=0xbfff if !oam_dma => self.cartridge.write(address, data),
-            0xc000..=0xdfff if !oam_dma => self.work_ram.write(address, data),
+            0x0000..=0x7fff => self.cartridge.write(address, data),
+            0x8000..=0x9fff => self.ppu.write(address, data),
+            0xa000..=0xbfff => self.cartridge.write(address, data),
+            0xc000..=0xdfff => self.work_ram.write(address, data),
             // Nintendo says use of this area is prohibited.
             0xe000..=0xfdff => {
                 error!("Echo RAM");
                 error!("Nintendo says use of this area is prohibited");
                 self.stop_running();
             }
-            0xfe00..=0xfe9f if !oam_dma => self.ppu.write(address, data),
+            0xfe00..=0xfe9f => self.ppu.write(address, data),
             0xfea0..=0xfeff => {
                 return;
 
@@ -316,17 +307,9 @@ impl<C: Cartridge> Device for Emulator<C> {
                 error!("Nintendo says use of this area is prohibited!");
                 self.stop_running();
             }
-            0xff00..=0xff7f if !oam_dma => self.write_io(address, data),
+            0xff00..=0xff7f => self.write_io(address, data),
             0xff80..=0xfffe => self.high_ram.write(address, data),
-            0xffff if !oam_dma => self.irq.write(address, data),
-
-            // illegal access during OAM DMA transfer
-            // during this process, the GB is only allowed to access HRAM
-            _ if oam_dma => {
-                error!("Illegal address accessed: {:#04x}", address);
-                error!("OAM Transfer in still in progress!");
-                //self.stop_running();
-            }
+            0xffff => self.irq.write(address, data),
             _ => unreachable!(),
         }
     }

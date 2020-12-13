@@ -34,7 +34,7 @@ impl Device for IRQ {
         match address {
             0xff0f => self.fi = data,
             0xffff => {
-                info!("IE = {:#08b} {:#02x}", data, data);
+                info!("IE = {:#08b}", data);
 
                 self.ie = data
             }

@@ -47,23 +47,23 @@ impl PPU {
         let Window { wy, wx } = self.window;
 
         for dot in 0..lcd::WIDTH {
-            let row = scy.wrapping_add(ly);
-            let col = scx.wrapping_add(dot as u8);
+            let row = scy.wrapping_add(ly) as u16;
+            let col = scx.wrapping_add(dot as u8) as u16;
 
             let color = if self.lcdc.window_enable() {
                 // WX - Window X Position minus 7
                 let dot = (dot + 7) as u8;
 
                 if ly >= wy && dot >= wx {
-                    let row = ly - wy;
-                    let col = dot - wx;
+                    let row = (ly - wy) as u16;
+                    let col = (dot - wx) as u16;
 
-                    self.decode_map(row, col, self.lcdc.window_map_select())
+                    self.decode_bg_win(row, col, self.lcdc.window_map_select())
                 } else {
-                    self.decode_map(row, col, self.lcdc.bg_map_select())
+                    self.decode_bg_win(row, col, self.lcdc.bg_map_select())
                 }
             } else {
-                self.decode_map(row, col, self.lcdc.bg_map_select())
+                self.decode_bg_win(row, col, self.lcdc.bg_map_select())
             };
 
             self.display[display_offset + dot as usize] = color;
@@ -73,18 +73,20 @@ impl PPU {
             return;
         }
 
+        let ly = ly as i16;
+
         for i in 0..40 {
             let Entry { y, x, tile, flags } = self.oam.table()[i];
-            let y = y.wrapping_sub(16);
-            let x = x.wrapping_sub(8);
+            let y = (y as i16) - 16;
+            let x = (x as i16) - 8;
             let size = if self.lcdc.obj_size() { 16 } else { 8 };
 
             if ly >= y && ly < y + size {
-                for dot in x..x + 8 {
-                    let mut row = (ly - y) as u16;
-                    let mut col = (dot - x) as u16;
+                for dot in x.max(0)..(x + 8).min(lcd::WIDTH as _) {
+                    let mut row = ly - y;
+                    let mut col = dot - x;
                     if flags.contains(Flags::Y_FLIP) {
-                        row = 7 - row;
+                        row = size - row - 1;
                     }
                     if !flags.contains(Flags::X_FLIP) {
                         col = 7 - col;
@@ -96,9 +98,15 @@ impl PPU {
                         self.palette.obp0
                     };
 
-                    if let Some(color) = self.decode_tile(row, col, tile, 0x8000, pal, true) {
-                        if !flags.contains(Flags::OBJ_TO_BG_PRIORITY) {
-                            self.display[display_offset + dot as usize] = color;
+                    let offset = display_offset + dot as usize;
+
+                    if !flags.contains(Flags::OBJ_TO_BG_PRIORITY)
+                        || self.display[offset] == lcd::PALETTE[0]
+                    {
+                        if let Some(color) =
+                            self.decode_tile(row as u16, col as u16, tile, 0x8000, pal, true)
+                        {
+                            self.display[offset] = color;
                         }
                     }
                 }
@@ -107,10 +115,7 @@ impl PPU {
     }
 
     // decode bg and window pixel
-    fn decode_map(&self, row: u8, col: u8, map: u16) -> Pixel {
-        // map pixel
-        let row = row as u16;
-        let col = col as u16;
+    fn decode_bg_win(&self, row: u16, col: u16, map: u16) -> Pixel {
         // tile pixel
         let prow = row % 8;
         let pcol = 7 - col % 8;
@@ -140,13 +145,8 @@ impl PPU {
         opacity: bool,
     ) -> Option<Pixel> {
         // tile data (each row takes 2 bytes so a full 8x8 tile consists of 16 bytes)
-        let data_address = if data_select == 0x8800 {
-            let index: isize = 128 + unsafe { std::mem::transmute::<_, i8>(index) } as isize;
-            data_select + (index as u16 * 16) + (prow * 2)
-        } else {
-            data_select + (index as u16 * 16) + (prow * 2)
-        };
-        //let tile_data_address = tile_data_select + (tile_index * 16) + (prow * 2);
+        let tile_data_offset = decode_tile_data_offset(index, data_select);
+        let data_address = data_select + tile_data_offset * 16 + (prow * 2);
         let tile_data_lo = (self.read(data_address) >> pcol) & 1;
         let tile_data_hi = (self.read(data_address + 1) >> pcol) & 1;
         // decode color
@@ -156,6 +156,16 @@ impl PPU {
         }
         let color_index = (pal >> (2 * pal_index)) & 0b11;
         Some(lcd::PALETTE[color_index as usize])
+    }
+}
+
+// decode tile index
+fn decode_tile_data_offset(index: u8, data_select: u16) -> u16 {
+    if data_select == 0x8800 {
+        let index: i32 = 128 + unsafe { std::mem::transmute::<_, i8>(index) } as i32;
+        index as u16
+    } else {
+        index as u16
     }
 }
 

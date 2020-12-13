@@ -197,7 +197,9 @@ impl<C: Cartridge> Emulator<C> {
                 }
             }
             0xff47..=0xff4b => self.ppu.write(address, data),
-            0xff4f          => todo!("Game Boy Color (VRAM Bank Select)"),
+            0xff4f          => {
+                warn!("Game Boy Color (VRAM Bank Select)");
+            },
             0xff50          => self.boot.write(address, data),
             0xff51..=0xff55 => todo!("Game Boy color"),
             0xff68..=0xff6a => todo!("Game Boy color (DMA)"),

@@ -6,6 +6,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 
 pub mod mbc1;
+pub mod mbc3;
 pub mod rom;
 
 pub trait Cartridge: Device {}

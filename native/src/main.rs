@@ -1,8 +1,8 @@
 use core::{
-    cartridge::{mbc3::MBC3, rom::ROM, Cartridge, NoCartridge},
+    cartridge::{mbc3::MBC3, rom::ROM, Cartridge, NoCartridge, MBC1},
     Button, GameBoy,
 };
-use log::{info, warn, LevelFilter};
+use log::{error, info, warn, LevelFilter};
 use minifb::{Key, KeyRepeat, Scale, Window, WindowOptions};
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
@@ -116,7 +116,29 @@ fn main() -> Result<(), Error> {
     }
 
     if let Some(path) = &app.path {
-        run(&app, ROM::new(read_rom(path)?));
+        let data = read_rom(path)?;
+        let kind = data[0x147];
+        match kind {
+            0x00 | 0x08 | 0x09 => {
+                info!("Cartridge type: ROM ({:02X}h)", kind);
+
+                run(&app, ROM::new(data))
+            }
+            0x01 | 0x02 | 0x03 => {
+                info!("Cartridge type: MBC1 ({:02X}h)", kind);
+
+                run(&app, MBC1::new(data))
+            }
+            0x0f | 0x10 | 0x11 | 0x12 | 0x13 => {
+                info!("Cartridge type: MBC3 ({:02X}h)", kind);
+
+                run(&app, MBC3::new(data))
+            }
+            _ => {
+                error!("Unknown cartridge type: {:02X}h", kind);
+                panic!();
+            }
+        }
     } else {
         run(&app, NoCartridge);
     }

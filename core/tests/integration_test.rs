@@ -1,5 +1,5 @@
 // run test rom for the given amount of seconds, before checking the state of
-// the display that determines the test result.
+// the display, which determines the test result.
 fn integration_test(name: &str, rom: &[u8], ground_truth: &[u8], seconds: u32) {
     use core::{
         cartridge::ROM,
@@ -20,7 +20,7 @@ fn integration_test(name: &str, rom: &[u8], ground_truth: &[u8], seconds: u32) {
 
     let display: &[u8; WIDTH * HEIGHT * 4] = unsafe { std::mem::transmute(gb.display()) };
 
-    // save image to disk
+    // TODO save image to disk if comparison fails
     #[cfg(todo)]
     if ground_truth != &display[..] {
         let image: ImageBuffer<Rgba<u8>, Vec<_>> =

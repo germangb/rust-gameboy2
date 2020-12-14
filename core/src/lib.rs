@@ -23,7 +23,7 @@ use crate::{
     cartridge::Cartridge,
     cpu::CPU,
     device::{Address, Device},
-    dma::OamDma,
+    dma::DMA,
     high_ram::HighRAM,
     irq::IRQ,
     joypad::Joypad,
@@ -61,14 +61,8 @@ mod work_ram;
 
 const CLOCK: u64 = 4_194_304;
 
-struct EmulationStep {
-    /// Number of elapsed ticks.
-    /// Driven by main clock (4194304Hz)
-    pub clock_ticks: u64,
-}
-
 trait Update {
-    fn update(&mut self, step: &EmulationStep, request: &mut Request);
+    fn update(&mut self, ticks: u64, request: &mut Request);
 }
 
 #[derive(Default, Debug, Clone, Eq, PartialEq)]
@@ -80,7 +74,7 @@ struct Emulator<C> {
     cpu: Option<CPU>,
     cartridge: C,
     boot: Boot,
-    oam_dma: OamDma,
+    oam_dma: DMA,
     joypad: Joypad,
     ppu: PPU,
     timer: Timer,
@@ -113,16 +107,13 @@ impl<C: Cartridge> Emulator<C> {
     fn update(&mut self) {
         if self.running.get() {
             let mut cpu = self.cpu.take().unwrap();
-            let cpu_step = cpu.update(self);
+            let ticks = cpu.update(self);
             self.cpu = Some(cpu);
-            let step = EmulationStep {
-                clock_ticks: cpu_step,
-            };
             let mut request = Request::default();
 
-            self.oam_dma.update(&step, &mut request);
-            self.ppu.update(&step, &mut request);
-            self.timer.update(&step, &mut request);
+            self.oam_dma.update(ticks, &mut request);
+            self.ppu.update(ticks, &mut request);
+            self.timer.update(ticks, &mut request);
 
             // request IF register with requested interrupts.
             self.update_irq(&request);

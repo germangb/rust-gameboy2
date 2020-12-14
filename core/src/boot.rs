@@ -4,7 +4,7 @@ use log::{error, info};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "boot")]
-const ROM: &[u8] = include_bytes!("boot/dmg_boot.bin");
+const ROM: &[u8] = include_bytes!("../boot/dmg_boot.bin");
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

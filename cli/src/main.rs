@@ -1,5 +1,5 @@
 use core::{
-    cartridge::{mbc3::MBC3, Cartridge, NoCartridge},
+    cartridge::{mbc3::MBC3, rom::ROM, Cartridge, NoCartridge},
     Button, GameBoy,
 };
 use log::{info, warn, LevelFilter};
@@ -78,6 +78,18 @@ fn run(app: &App, cartridge: impl Cartridge) {
 
         gb.update_frame();
 
+        if window.is_key_pressed(Key::D, KeyRepeat::No) {
+            info!("Generating display.bin");
+
+            unsafe {
+                std::fs::write(
+                    "display.bin",
+                    std::mem::transmute::<_, [u8; 160 * 144 * 4]>(gb.display().clone()),
+                )
+                .unwrap();
+            }
+        }
+
         window
             .update_with_buffer(&gb.display()[..], 160, 144)
             .unwrap();
@@ -104,7 +116,7 @@ fn main() -> Result<(), Error> {
     }
 
     if let Some(path) = &app.path {
-        run(&app, MBC3::new(read_rom(path)?));
+        run(&app, ROM::new(read_rom(path)?));
     } else {
         run(&app, NoCartridge);
     }

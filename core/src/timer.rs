@@ -2,7 +2,7 @@ use crate::{
     device::{invalid_read, invalid_write, Device},
     irq::Request,
     utils::ClockDecimate,
-    EmulationStep, Update, CLOCK,
+    Update, CLOCK,
 };
 use log::info;
 #[cfg(feature = "serde")]
@@ -47,15 +47,15 @@ impl Timer {
 }
 
 impl Update for Timer {
-    fn update(&mut self, step: &EmulationStep, request: &mut Request) {
+    fn update(&mut self, ticks: u64, request: &mut Request) {
         // update the DIV clock
-        let div = self.div_clock.update(step.clock_ticks);
+        let div = self.div_clock.update(ticks);
         self.div = self.div.wrapping_add(div as u8);
 
         if self.is_tima_enabled() {
             // update the tima clock
             let mut tima = self.tima as u16;
-            tima += self.tima_clock.update(step.clock_ticks) as u16;
+            tima += self.tima_clock.update(ticks) as u16;
 
             if tima > 0xff {
                 self.tima = self.tma;
@@ -104,9 +104,7 @@ impl Device for Timer {
 #[cfg(test)]
 mod test {
     use super::Timer;
-    use crate::{
-        cartridge::NoCartridge, device::Device, irq::Request, EmulationStep, Emulator, Update,
-    };
+    use crate::{cartridge::NoCartridge, device::Device, irq::Request, Emulator, Update};
 
     #[test]
     fn timer_interrupt() {
@@ -119,16 +117,16 @@ mod test {
         timer.write(0xff07, 0b0000_0100);
         timer.write(0xff05, 0xfe);
 
-        timer.update(&EmulationStep { clock_ticks: 4 }, &mut request);
+        timer.update(4, &mut request);
         states.push(request.timer); // false
 
-        timer.update(&EmulationStep { clock_ticks: 4 }, &mut request);
+        timer.update(4, &mut request);
         states.push(request.timer); // false (tima = 0xff)
 
-        timer.update(&EmulationStep { clock_ticks: 4 }, &mut request);
+        timer.update(4, &mut request);
         states.push(request.timer); // false
 
-        timer.update(&EmulationStep { clock_ticks: 4 }, &mut request);
+        timer.update(4, &mut request);
         states.push(request.timer); // true
 
         assert_eq!(vec![false, false, false, true], states);

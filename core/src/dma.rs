@@ -1,7 +1,7 @@
 use crate::{
     device::{invalid_read, invalid_write, Device},
     irq::Request,
-    EmulationStep, Update,
+    Update,
 };
 use log::info;
 #[cfg(feature = "serde")]
@@ -12,12 +12,12 @@ const DURATION: u64 = 160;
 
 #[derive(Default, Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct OamDma {
+pub struct DMA {
     dma: u8,
     clocks: u64,
 }
 
-impl OamDma {
+impl DMA {
     pub fn is_active(&self) -> bool {
         self.clocks != 0
     }
@@ -27,17 +27,17 @@ impl OamDma {
     }
 }
 
-impl Update for OamDma {
-    fn update(&mut self, step: &EmulationStep, _: &mut Request) {
-        if self.clocks >= step.clock_ticks {
-            self.clocks -= step.clock_ticks;
+impl Update for DMA {
+    fn update(&mut self, ticks: u64, _: &mut Request) {
+        if self.clocks >= ticks {
+            self.clocks -= ticks;
         } else {
             self.clocks = 0;
         }
     }
 }
 
-impl Device for OamDma {
+impl Device for DMA {
     const DEBUG_NAME: &'static str = "OAM DMA";
 
     fn read(&self, address: u16) -> u8 {
@@ -61,8 +61,8 @@ impl Device for OamDma {
 
 #[cfg(test)]
 mod test {
-    use super::OamDma;
-    use crate::{cartridge::NoCartridge, device::Device, EmulationStep, Emulator, Update};
+    use super::DMA;
+    use crate::{cartridge::NoCartridge, device::Device, Emulator, Update};
 
     #[test]
     fn oam_dma_start_address() {
@@ -81,13 +81,11 @@ mod test {
         states.push(emu.oam_dma.is_active());
 
         for _ in 0..160 - 4 {
-            emu.oam_dma
-                .update(&EmulationStep { clock_ticks: 1 }, &mut Default::default());
+            emu.oam_dma.update(1, &mut Default::default());
         }
 
         states.push(emu.oam_dma.is_active());
-        emu.oam_dma
-            .update(&EmulationStep { clock_ticks: 4 }, &mut Default::default());
+        emu.oam_dma.update(4, &mut Default::default());
         states.push(emu.oam_dma.is_active());
 
         assert_eq!(vec![false, true, true, false], states);

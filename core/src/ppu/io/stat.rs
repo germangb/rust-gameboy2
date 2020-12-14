@@ -1,7 +1,7 @@
 use crate::{
     device::{invalid_read, invalid_write, Device},
     irq::Request,
-    EmulationStep, CLOCK,
+    CLOCK,
 };
 use log::info;
 #[cfg(feature = "serde")]

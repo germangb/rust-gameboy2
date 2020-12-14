@@ -5,6 +5,10 @@ use crate::{
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+pub use mbc1::MBC1;
+pub use mbc3::MBC3;
+pub use rom::ROM;
+
 pub mod mbc1;
 pub mod mbc3;
 pub mod rom;

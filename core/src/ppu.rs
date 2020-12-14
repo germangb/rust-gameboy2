@@ -7,7 +7,7 @@ use crate::{
         oam::{Entry, Flags, OAM},
         video_ram::VideoRAM,
     },
-    EmulationStep, Update,
+    Update,
 };
 use log::info;
 #[cfg(feature = "serde")]
@@ -171,17 +171,17 @@ fn decode_tile_data_offset(index: u8, data_select: u16) -> u16 {
 }
 
 impl Update for PPU {
-    fn update(&mut self, step: &EmulationStep, request: &mut Request) {
+    fn update(&mut self, ticks: u64, request: &mut Request) {
         let line = self.stat.ly();
 
         #[cfg(fixme)]
         {
-            for _ in 0..step.clock_ticks / 4 {
+            for _ in 0..ticks / 4 {
                 self.stat.update(4, request);
             }
-            self.stat.update(step.clock_ticks % 4, request);
+            self.stat.update(ticks % 4, request);
         }
-        self.stat.update(step.clock_ticks, request);
+        self.stat.update(ticks, request);
 
         if line < 144 && line != self.stat.ly() {
             self.draw_scanline(line);

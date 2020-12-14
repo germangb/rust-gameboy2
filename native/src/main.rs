@@ -1,3 +1,5 @@
+use crate::camera_sensor::CameraSensor;
+use camera::PoketCamera;
 use core::{
     cartridge::{mbc3::MBC3, rom::ROM, Cartridge, NoCartridge, MBC1},
     Button, GameBoy,
@@ -6,6 +8,9 @@ use log::{error, info, warn, LevelFilter};
 use minifb::{Key, KeyRepeat, Scale, Window, WindowOptions};
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
+
+#[cfg(feature = "camera")]
+mod camera_sensor;
 
 type Error = Box<dyn std::error::Error>;
 
@@ -133,6 +138,14 @@ fn main() -> Result<(), Error> {
                 info!("Cartridge type: MBC3 ({:02X}h)", kind);
 
                 run(&app, MBC3::new(data))
+            }
+            #[cfg(feature = "camera")]
+            0xfc => {
+                info!("Cartridge type: PoketCamera ({:02X}h)", kind);
+
+                let sensor = CameraSensor;
+
+                run(&app, PoketCamera::new(sensor));
             }
             _ => {
                 error!("Unknown cartridge type: {:02X}h", kind);

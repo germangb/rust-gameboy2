@@ -52,7 +52,7 @@ impl Device for DMA {
             invalid_write(address);
         }
 
-        info!("OAM DMA: {:#02x}", self.dma);
+        info!("OAM DMA Register: {:02x}", self.dma);
 
         self.dma = data;
         self.clocks = DURATION;

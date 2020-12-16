@@ -24,12 +24,11 @@ use crate::{
     cpu::CPU,
     device::{Address, Device},
     dma::DMA,
-    high_ram::HighRAM,
-    irq::IRQ,
+    irq::{Request, IRQ},
     joypad::Joypad,
     ppu::PPU,
+    ram::{HighRAM, WorkRAM},
     timer::Timer,
-    work_ram::WorkRAM,
 };
 use log::{error, info, warn};
 #[cfg(feature = "serde")]
@@ -37,9 +36,7 @@ use serde::{Deserialize, Serialize};
 use std::cell::Cell;
 
 // re-exports
-use crate::irq::Request;
 pub use gb::GameBoy;
-pub use gbc::GameBoyColor;
 pub use joypad::Button;
 pub use ppu::lcd;
 
@@ -50,14 +47,12 @@ pub mod cpu;
 pub mod device;
 mod dma;
 mod gb;
-mod gbc;
-mod high_ram;
 mod irq;
 mod joypad;
 mod ppu;
+mod ram;
 mod timer;
 mod utils;
-mod work_ram;
 
 const CLOCK: u64 = 4_194_304;
 
@@ -146,7 +141,7 @@ impl<C: Cartridge> Emulator<C> {
         match address {
             0xff00          => self.joypad.read(address),
             0xff01..=0xff02 => {
-                //warn!("Port/Mode not implemented");
+                warn!("Port/Mode not implemented {:04x}", address);
                 0
             },
             0xff04..=0xff07 => self.timer.read(address),
@@ -156,12 +151,15 @@ impl<C: Cartridge> Emulator<C> {
             0xff40..=0xff45 => self.ppu.read(address),
             0xff46          => self.oam_dma.read(address),
             0xff47..=0xff4b => self.ppu.read(address),
-            0xff4f          => todo!("Game Boy Color (VRAM Bank Select)"),
+            0xff4f          => {
+                warn!("Game Boy Color (VRAM Bank Select)");
+                0x00
+            },
             0xff50          => self.boot.read(address),
             0xff51..=0xff55 => todo!("Game Boy color"),
             0xff68..=0xff6a => todo!("Game Boy color (DMA)"),
             _               => {
-                warn!("Unknown IO address: {:#04x}", address);
+                warn!("Unknown IO address: {:04x}", address);
                 0xff
             },
         }
@@ -172,7 +170,7 @@ impl<C: Cartridge> Emulator<C> {
         match address {
             0xff00          => self.joypad.write(address, data),
             0xff01..=0xff02 => {
-                //warn!("Port/Mode not implemented");
+                warn!("Port/Mode not implemented: {:04x}, {:02x}", address, data);
             },
             0xff04..=0xff07 => self.timer.write(address, data),
             0xff0f          => self.irq.write(address, data),
@@ -190,13 +188,13 @@ impl<C: Cartridge> Emulator<C> {
             }
             0xff47..=0xff4b => self.ppu.write(address, data),
             0xff4f          => {
-                warn!("Game Boy Color (VRAM Bank Select): {:#x}", data);
+                warn!("Game Boy Color (VRAM Bank Select): {:02x}", data);
             },
             0xff50          => self.boot.write(address, data),
             0xff51..=0xff55 => todo!("Game Boy color"),
             0xff68..=0xff6a => todo!("Game Boy color (DMA)"),
             _               => {
-                warn!("Unknown IO address: {:#04x}, data: {:#x}", address, data);
+                warn!("Unknown IO address: {:04x}, data: {:02x}", address, data);
             },
         }
     }
@@ -205,27 +203,27 @@ impl<C: Cartridge> Emulator<C> {
         let mut fi = self.read(0xff0f);
 
         if request.vblank {
-            info!("Request VBLANK interrupt");
+            //info!("Request VBLANK interrupt");
 
             fi |= 0b0000_0001
         }
         if request.lcd_stat {
-            info!("Request LCDC interrupt");
+            //info!("Request LCDC interrupt");
 
             fi |= 0b0000_0010
         }
         if request.timer {
-            info!("Request TIMER interrupt");
+            //info!("Request TIMER interrupt");
 
             fi |= 0b0000_0100
         }
         if request.serial {
-            info!("Request SERIAL interrupt");
+            //info!("Request SERIAL interrupt");
 
             fi |= 0b0000_1000
         }
         if request.joypad {
-            info!("Request JOYPAD interrupt");
+            //info!("Request JOYPAD interrupt");
 
             fi |= 0b0001_0000
         }

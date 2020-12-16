@@ -49,12 +49,6 @@ mod test {
         emu.write(0x8000, 1);
         emu.write(0x9fff, 2);
 
-        assert_eq!(
-            [1, 2],
-            [
-                emu.ppu.video_ram.read(0x8000),
-                emu.ppu.video_ram.read(0x9fff)
-            ]
-        );
+        assert_eq!([1, 2], [emu.read(0x8000), emu.read(0x9fff)]);
     }
 }

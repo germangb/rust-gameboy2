@@ -26,6 +26,10 @@ impl LCDC {
         (self.lcdc & 0b0000_0100) != 0
     }
 
+    pub fn bg_window_priority(&self) -> bool {
+        (self.lcdc & 0b0000_0001) != 0
+    }
+
     // Returns the address where the window map.
     // According to LCDC.6
     pub fn window_map_select(&self) -> u16 {
@@ -73,7 +77,7 @@ impl Device for LCDC {
             invalid_write(address);
         }
 
-        info!("LCDC = {:#08b}", data);
+        info!("LCDC: {:08b}", data);
 
         self.lcdc = data
     }
@@ -84,55 +88,100 @@ mod test {
     use crate::{cartridge::NoCartridge, device::Device, ppu::io::lcdc::LCDC, Emulator};
 
     #[test]
-    fn lcd_off() {
-        let lcdc = LCDC { lcdc: 0 };
-
-        assert!(!lcdc.lcd_on());
-    }
-
-    #[test]
-    fn lcd_on() {
-        let lcdc = LCDC { lcdc: 0b1000_0000 };
-
-        assert!(lcdc.lcd_on());
-    }
-
-    #[test]
     fn lcdc() {
         let mut emu = Emulator::new(NoCartridge);
+        let mut states = Vec::new();
 
-        emu.write(0xff40, 0xab);
+        emu.write(0xff40, 0b00000000);
+        states.push(emu.ppu.lcdc.lcd_on());
 
-        assert_eq!(0xab, emu.ppu.lcdc.read(0xff40));
+        emu.write(0xff40, 0b10000000);
+        states.push(emu.ppu.lcdc.lcd_on());
+
+        assert_eq!(vec![false, true], states);
     }
 
     #[test]
     fn window_display() {
-        todo!()
+        let mut emu = Emulator::new(NoCartridge);
+        let mut states = Vec::new();
+
+        emu.write(0xff40, 0b00000000);
+        states.push(emu.ppu.lcdc.window_enable());
+
+        emu.write(0xff40, 0b00100000);
+        states.push(emu.ppu.lcdc.window_enable());
+
+        assert_eq!(vec![false, true], states);
     }
 
     #[test]
     fn obj_display() {
-        todo!()
+        let mut emu = Emulator::new(NoCartridge);
+        let mut states = Vec::new();
+
+        emu.write(0xff40, 0b00000000);
+        states.push(emu.ppu.lcdc.obj_enable());
+
+        emu.write(0xff40, 0b00000010);
+        states.push(emu.ppu.lcdc.obj_enable());
+
+        assert_eq!(vec![false, true], states);
     }
 
     #[test]
     fn bg_window_display_priority_display() {
-        todo!()
+        let mut emu = Emulator::new(NoCartridge);
+        let mut states = Vec::new();
+
+        emu.write(0xff40, 0b00000000);
+        states.push(emu.ppu.lcdc.bg_window_priority());
+
+        emu.write(0xff40, 0b00000001);
+        states.push(emu.ppu.lcdc.bg_window_priority());
+
+        assert_eq!(vec![false, true], states);
     }
 
     #[test]
     fn bg_window_data_select() {
-        todo!()
+        let mut emu = Emulator::new(NoCartridge);
+        let mut states = Vec::new();
+
+        emu.write(0xff40, 0b00000000);
+        states.push(emu.ppu.lcdc.bg_window_data_select());
+
+        emu.write(0xff40, 0b00010000);
+        states.push(emu.ppu.lcdc.bg_window_data_select());
+
+        assert_eq!(vec![0x8800, 0x8000], states);
     }
 
     #[test]
     fn bg_map_select() {
-        todo!()
+        let mut emu = Emulator::new(NoCartridge);
+        let mut states = Vec::new();
+
+        emu.write(0xff40, 0b00000000);
+        states.push(emu.ppu.lcdc.bg_map_select());
+
+        emu.write(0xff40, 0b00001000);
+        states.push(emu.ppu.lcdc.bg_map_select());
+
+        assert_eq!(vec![0x9800, 0x9c00], states);
     }
 
     #[test]
     fn window_map_select() {
-        todo!()
+        let mut emu = Emulator::new(NoCartridge);
+        let mut states = Vec::new();
+
+        emu.write(0xff40, 0b00000000);
+        states.push(emu.ppu.lcdc.window_map_select());
+
+        emu.write(0xff40, 0b01000000);
+        states.push(emu.ppu.lcdc.window_map_select());
+
+        assert_eq!(vec![0x9800, 0x9c00], states);
     }
 }

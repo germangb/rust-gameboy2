@@ -7,14 +7,11 @@ bitflags! {
     #[derive(Default)]
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     pub struct Flags: u8 {
-        const OBJ_TO_BG_PRIORITY = 0b_1_0000000;
-        const Y_FLIP             = 0b0_1_000000;
-        const X_FLIP             = 0b00_1_00000;
-        const PAL_NUMBER         = 0b000_1_0000;
-        const CGB_VRAM_BANK      = 0b0000_1_000;
-        const CGB_PAL_0          = 0b00000_1_00;
-        const CGB_PAL_1          = 0b000000_1_0;
-        const CGB_PAL_2          = 0b0000000_1_;
+        const OBJ_TO_BG_PRIORITY = 0b10000000;
+        const Y_FLIP             = 0b01000000;
+        const X_FLIP             = 0b00100000;
+        const PAL_NUMBER         = 0b00010000;
+        const UNUSED             = 0b00001111;
     }
 }
 

@@ -5,8 +5,8 @@ use crate::{
         io::{lcdc::LCDC, stat::STAT, Palette, Scroll, Window},
         lcd::{Display, DisplaySerde, Pixel},
         oam::{Entry, Flags, OAM},
-        video_ram::VideoRAM,
     },
+    ram::VideoRAM,
     Update,
 };
 use log::info;
@@ -16,7 +16,6 @@ use serde::{Deserialize, Serialize};
 mod io;
 pub mod lcd;
 mod oam;
-mod video_ram;
 
 #[derive(Default, Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

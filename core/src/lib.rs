@@ -30,7 +30,7 @@ use crate::{
     ram::{HighRAM, WorkRAM},
     timer::Timer,
 };
-use log::{error, info, warn};
+use log::{info, warn};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::cell::Cell;
@@ -74,7 +74,6 @@ trait Update {
 #[derive(Default, Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 struct Emulator<C> {
-    running: Cell<bool>,
     // borrow checker workaround
     // cpu will be leaving the Option temporarily
     cpu: Option<CPU>,
@@ -93,7 +92,6 @@ struct Emulator<C> {
 impl<C> Emulator<C> {
     fn new(cartridge: C) -> Self {
         Self {
-            running: Cell::new(true),
             cpu: Some(Default::default()),
             cartridge,
             boot: Default::default(),
@@ -115,46 +113,34 @@ impl<C: Cartridge> Emulator<C> {
     }
 
     fn update(&mut self) -> Result<(), Error> {
-        if self.running.get() {
-            let mut cpu = self.cpu.take().unwrap();
-            let ticks = cpu.update(self)?;
-            self.cpu = Some(cpu);
-            let mut request = Request::default();
+        let mut cpu = self.cpu.take().unwrap();
+        let ticks = cpu.update(self)?;
+        self.cpu = Some(cpu);
+        let mut request = Request::default();
 
-            self.oam_dma.update(ticks, &mut request);
-            self.ppu.update(ticks, &mut request);
-            self.timer.update(ticks, &mut request);
+        self.oam_dma.update(ticks, &mut request);
+        self.ppu.update(ticks, &mut request);
+        self.timer.update(ticks, &mut request);
 
-            // request IF register with requested interrupts.
-            self.update_irq(&request)?;
-            Ok(())
-        } else {
-            panic!("Emulator is no longer running")
-        }
+        // request IF register with requested interrupts.
+        self.update_irq(&request)?;
+        Ok(())
     }
 
     fn update_frame(&mut self) -> Result<(), Error> {
-        if self.running.get() {
-            // run until VBLANK
-            while self.read(0xff41)? & 0b11 != 0b01 {
-                self.update()?;
-            }
-
-            self.ppu.finish();
-
-            // run until next OAM search
-            while self.read(0xff41)? & 0b11 != 0b10 {
-                self.update()?;
-            }
-
-            Ok(())
-        } else {
-            panic!("Emulator is no longer running")
+        // run until VBLANK
+        while self.read(0xff41)? & 0b11 != 0b01 {
+            self.update()?;
         }
-    }
 
-    fn stop_running(&self) {
-        self.running.set(false);
+        self.ppu.finish();
+
+        // run until next OAM search
+        while self.read(0xff41)? & 0b11 != 0b10 {
+            self.update()?;
+        }
+
+        Ok(())
     }
 
     #[rustfmt::skip]
@@ -177,8 +163,14 @@ impl<C: Cartridge> Emulator<C> {
                 Ok(0)
             },
             0xff50          => self.boot.read(address),
-            0xff51..=0xff55 => todo!("Game Boy color"),
-            0xff68..=0xff6a => todo!("Game Boy color (DMA)"),
+            0xff51..=0xff55 => {
+                warn!("Game Boy color");
+                Ok(0)
+            },
+            0xff68..=0xff6a => {
+                warn!("Game Boy color (DMA)");
+                Ok(0)
+            },
             _               => {
                 warn!("Unknown IO address: {:04x}", address);
                 Ok(0xff)
@@ -216,8 +208,14 @@ impl<C: Cartridge> Emulator<C> {
                 Ok(())
             },
             0xff50          => self.boot.write(address, data),
-            0xff51..=0xff55 => todo!("Game Boy color"),
-            0xff68..=0xff6a => todo!("Game Boy color (DMA)"),
+            0xff51..=0xff55 => {
+                warn!("Game Boy color");
+                Ok(())
+            },
+            0xff68..=0xff6a => {
+                warn!("Game Boy color (DMA)");
+                Ok(())
+            },
             _               => {
                 warn!("Unknown IO address: {:04x}, data: {:02x}", address, data);
                 Ok(())
@@ -291,18 +289,15 @@ impl<C: Cartridge> Device for Emulator<C> {
                 self.read(address - 0xe000 + 0xc000)
             }
             0xfe00..=0xfe9f => self.ppu.read(address),
+
+            // TODO emulate behavior depending on device & hardware revision
+            //  https://gbdev.io/pandocs/#fea0-feff-range
             0xfea0..=0xfeff => {
-                error!("Nintendo says use of this area is prohibited (Unused).");
+                warn!("Nintendo says use of this area is prohibited (Unused).");
 
-                return Ok(0x42);
-
-                // emulate behavior depending on device & hardware revision
-                // https://gbdev.io/pandocs/#fea0-feff-range
-                todo!();
-
-                self.stop_running();
-                Ok(0x00)
+                Ok(0xff)
             }
+
             0xff00..=0xff7f => self.read_io(address),
             0xff80..=0xfffe => self.high_ram.read(address),
             0xffff => self.irq.read(address),
@@ -320,24 +315,19 @@ impl<C: Cartridge> Device for Emulator<C> {
             0xc000..=0xdfff => self.work_ram.write(address, data),
             // Nintendo says use of this area is prohibited.
             0xe000..=0xfdff => {
-                error!("Nintendo says use of this area is prohibited (Echo RAM).");
-
-                self.stop_running();
+                warn!("Nintendo says use of this area is prohibited (Echo RAM).");
                 Ok(())
             }
             0xfe00..=0xfe9f => self.ppu.write(address, data),
+
+            // TODO emulate behavior depending on device & hardware revision
+            //  https://gbdev.io/pandocs/#fea0-feff-range
             0xfea0..=0xfeff => {
-                error!("Nintendo says use of this area is prohibited (Unused).");
+                warn!("Nintendo says use of this area is prohibited (Unused).");
 
-                return Ok(());
-
-                // emulate behavior depending on device & hardware revision
-                // https://gbdev.io/pandocs/#fea0-feff-range
-                todo!();
-
-                self.stop_running();
                 Ok(())
             }
+
             0xff00..=0xff7f => self.write_io(address, data),
             0xff80..=0xfffe => self.high_ram.write(address, data),
             0xffff => self.irq.write(address, data),

@@ -209,7 +209,7 @@ mod test {
         emu.ppu.stat.stat = 1;
         emu.write(0xff41, 0xff).unwrap();
 
-        assert_eq!(0b1111_1_001, emu.ppu.stat.read(0xff41).unwrap());
+        assert_eq!(0b0111_1_001, emu.ppu.stat.read(0xff41).unwrap());
     }
 
     #[test]

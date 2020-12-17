@@ -1,6 +1,7 @@
 use crate::{
     cartridge::{ram_banks, Cartridge},
     device::Device,
+    error::Error,
 };
 use log::info;
 #[cfg(feature = "serde")]
@@ -56,38 +57,41 @@ impl Cartridge for MBC3 {}
 impl Device for MBC3 {
     const DEBUG_NAME: &'static str = "ROM (MBC3)";
 
-    fn read(&self, addr: u16) -> u8 {
-        match addr as usize {
-            addr @ 0x0000..=0x3fff => self.rom[addr],
+    fn read(&self, address: u16) -> Result<u8, Error> {
+        match address as usize {
+            addr @ 0x0000..=0x3fff => Ok(self.rom[addr]),
             addr @ 0x4000..=0x7fff => {
                 let addr = self.rom_addr(addr);
-                self.rom.get(addr).copied().unwrap_or(0)
+
+                Ok(self.rom.get(addr).copied().unwrap_or(0))
             }
             addr @ 0xa000..=0xbfff => {
                 if self.ram_timer_enabled {
-                    match self.mode {
+                    let data = match self.mode {
                         Mode::Ram => self
                             .ram
                             .get(self.ram_bank)
                             .map(|bank| bank[addr - 0xa000])
                             .unwrap_or(0),
                         Mode::Rtc => self.rtc[self.rtc_select],
-                    }
+                    };
+
+                    Ok(data)
                 } else {
-                    0
+                    Ok(0)
                 }
             }
-            _ => panic!(),
+            _ => Err(Error::InvalidAddr(address)),
         }
     }
 
-    fn write(&mut self, addr: u16, data: u8) {
+    fn write(&mut self, addr: u16, data: u8) -> Result<(), Error> {
         match addr as usize {
             0x0000..=0x1fff => self.ram_timer_enabled = data & 0xf == 0xa,
             0x2000..=0x3fff => {
                 info!("Selected ROM bank: {}", data);
 
-                self.rom_bank = data as usize
+                self.rom_bank = data as usize;
             }
             // As for the MBC1s RAM Banking Mode, writing a value in range for 00h-03h maps the
             // corresponding external RAM Bank (if any) into memory at A000-BFFF.
@@ -132,7 +136,9 @@ impl Device for MBC3 {
                     }
                 }
             }
-            _ => panic!(),
+            _ => return Err(Error::InvalidAddr(addr)),
         }
+
+        Ok(())
     }
 }

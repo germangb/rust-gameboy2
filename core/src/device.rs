@@ -1,5 +1,5 @@
+use crate::error::Error;
 use byteorder::{ByteOrder, LittleEndian};
-use log::error;
 
 type Endianness = LittleEndian;
 
@@ -9,56 +9,42 @@ pub type Data = u8;
 pub trait Device {
     const DEBUG_NAME: &'static str;
 
-    fn read(&self, address: Address) -> u8;
+    fn read(&self, address: Address) -> Result<Data, Error>;
 
-    fn write(&mut self, address: Address, data: Data);
+    fn write(&mut self, address: Address, data: Data) -> Result<(), Error>;
 
-    fn read_word(&self, address: Address) -> u16 {
-        let bytes = [self.read(address), self.read(address + 1)];
-        Endianness::read_u16(&bytes[..])
+    fn read_word(&self, address: Address) -> Result<u16, Error> {
+        let bytes = [self.read(address)?, self.read(address + 1)?];
+        Ok(Endianness::read_u16(&bytes[..]))
     }
 
-    fn write_word(&mut self, address: Address, data: u16) {
+    fn write_word(&mut self, address: Address, data: u16) -> Result<(), Error> {
         let mut bytes = [0; 2];
         Endianness::write_u16(&mut &mut bytes[..], data);
-        self.write(address, bytes[0]);
-        self.write(address + 1, bytes[1]);
+        self.write(address, bytes[0])?;
+        self.write(address + 1, bytes[1])?;
+        Ok(())
     }
-}
-
-// returned for invalid memory accesses
-// panics on release builds
-pub(crate) fn invalid_read(address: Address) -> u8 {
-    error!("Read from invalid address: {:#04x}", address);
-    #[cfg(debug_assertions)]
-    panic!();
-    #[cfg(not(debug_assertions))]
-    0
-}
-
-// returned for invalid memory accesses
-// panics on release builds
-pub(crate) fn invalid_write(address: Address) {
-    error!("Write to invalid address: {:#04x}", address);
-    #[cfg(debug_assertions)]
-    panic!();
 }
 
 #[cfg(test)]
 mod test {
     use super::Device;
+    use crate::error::Error;
 
     type TestDevice = Box<[u8; 0x10000]>;
 
     impl Device for TestDevice {
         const DEBUG_NAME: &'static str = "Test";
 
-        fn read(&self, address: u16) -> u8 {
-            self[address as usize]
+        fn read(&self, address: u16) -> Result<u8, Error> {
+            Ok(self[address as usize])
         }
 
-        fn write(&mut self, address: u16, data: u8) {
-            self[address as usize] = data
+        fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
+            self[address as usize] = data;
+
+            Ok(())
         }
     }
 
@@ -70,10 +56,10 @@ mod test {
     fn read_write_word() {
         let mut device = test_device();
 
-        device.write_word(0x0000, 0x1234);
-        device.write_word(0x0100, 0xabcd);
+        device.write_word(0x0000, 0x1234).unwrap();
+        device.write_word(0x0100, 0xabcd).unwrap();
 
-        assert_eq!(0x1234, device.read_word(0x0000));
-        assert_eq!(0xabcd, device.read_word(0x0100));
+        assert_eq!(0x1234, device.read_word(0x0000).unwrap());
+        assert_eq!(0xabcd, device.read_word(0x0100).unwrap());
     }
 }

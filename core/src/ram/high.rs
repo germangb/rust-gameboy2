@@ -1,9 +1,8 @@
-use crate::device::{invalid_read, invalid_write, Device};
+use crate::{device::Device, error::Error};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 const OFFSET: usize = 0xff80;
-const SIZE: usize = 0x27;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -23,18 +22,20 @@ impl Default for HighRAM {
 impl Device for HighRAM {
     const DEBUG_NAME: &'static str = "High Ram";
 
-    fn read(&self, address: u16) -> u8 {
+    fn read(&self, address: u16) -> Result<u8, Error> {
         match address {
-            0xff80..=0xfffe => self.data[address as usize - OFFSET],
-            _ => invalid_read(address),
+            0xff80..=0xfffe => Ok(self.data[address as usize - OFFSET]),
+            _ => Err(Error::InvalidAddr(address)),
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) {
+    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
         match address {
             0xff80..=0xfffe => self.data[address as usize - OFFSET] = data,
-            _ => invalid_write(address),
+            _ => return Err(Error::InvalidAddr(address)),
         }
+
+        Ok(())
     }
 }
 
@@ -46,12 +47,15 @@ mod test {
     fn high_ram() {
         let mut emu = Emulator::new(NoCartridge);
 
-        emu.write(0xff80, 1);
-        emu.write(0xfffe, 2);
+        emu.write(0xff80, 1).unwrap();
+        emu.write(0xfffe, 2).unwrap();
 
         assert_eq!(
             [1, 2],
-            [emu.high_ram.read(0xff80), emu.high_ram.read(0xfffe)]
+            [
+                emu.high_ram.read(0xff80).unwrap(),
+                emu.high_ram.read(0xfffe).unwrap()
+            ]
         );
     }
 }

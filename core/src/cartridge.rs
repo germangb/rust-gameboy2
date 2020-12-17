@@ -1,10 +1,8 @@
-use crate::{
-    device::{invalid_read, invalid_write, Device},
-    Update,
-};
+use crate::{device::Device, Update};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+use crate::error::Error;
 pub use mbc1::MBC1;
 pub use mbc3::MBC3;
 pub use rom::ROM;
@@ -24,17 +22,19 @@ impl Cartridge for NoCartridge {}
 impl Device for NoCartridge {
     const DEBUG_NAME: &'static str = "No-Cartridge";
 
-    fn read(&self, address: u16) -> u8 {
+    fn read(&self, address: u16) -> Result<u8, Error> {
         if matches!(address, 0x0000..=0x7fff | 0xa000..=0xbfff) {
-            0xff
+            Ok(0xff)
         } else {
-            invalid_read(address)
+            Err(Error::InvalidAddr(address))
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) {
+    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
         if !matches!(address, 0x0000..=0x7fff | 0xa000..=0xbfff) {
-            invalid_write(address)
+            Err(Error::InvalidAddr(address))
+        } else {
+            Ok(())
         }
     }
 }

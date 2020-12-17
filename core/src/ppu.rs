@@ -1,13 +1,13 @@
 use crate::{
-    device::{invalid_read, invalid_write, Address, Device},
-    irq::Request,
+    device::Device,
+    error::Error,
     ppu::{
         io::{lcdc::LCDC, stat::STAT, Palette, Scroll, Window},
         lcd::{Display, DisplaySerde, Pixel},
         oam::{Entry, Flags, OAM},
     },
     ram::VideoRAM,
-    Update,
+    Request, Update,
 };
 use log::{info, warn};
 #[cfg(feature = "serde")]
@@ -84,13 +84,13 @@ impl PPU {
             format!("SCY={} SCX={}", self.scroll.scy, self.scroll.scx),
             format!("WY={} WX={}", self.window.wy, self.window.wx),
             format!(
-                "BGP={:08b} OBP0={:08b} OBP1={:08b}",
-                self.palette.bgp, self.palette.obp0, self.palette.obp1
+                "OBP0={:08b} OBP1={:08b} BGP={:08b}",
+                self.palette.obp0, self.palette.obp1, self.palette.bgp
             ),
-            format!("LCDC={:08b}", self.lcdc.read(0xff40)),
+            format!("LCDC={:08b}", self.lcdc.read(0xff40).unwrap()),
             format!(
                 "STAT={:08b} LY={} LYC={}",
-                self.stat.read(0xff41),
+                self.stat.stat(),
                 self.stat.ly(),
                 self.stat.lyc(),
             ),
@@ -108,7 +108,7 @@ impl PPU {
     }
 
     // render the given line to the display buffer
-    fn draw_scanline(&mut self, ly: u8) {
+    fn draw_scanline(&mut self, ly: u8) -> Result<(), Error> {
         let display_offset = lcd::WIDTH * (ly as usize);
         let Scroll { scy, scx } = self.scroll;
         let Window { wy, wx } = self.window;
@@ -125,19 +125,19 @@ impl PPU {
                     let row = (ly - wy) as u16;
                     let col = (dot - wx) as u16;
 
-                    self.decode_bg_win(row, col, self.lcdc.window_map_select())
+                    self.decode_bg_win(row, col, self.lcdc.window_map_select())?
                 } else {
-                    self.decode_bg_win(row, col, self.lcdc.bg_map_select())
+                    self.decode_bg_win(row, col, self.lcdc.bg_map_select())?
                 }
             } else {
-                self.decode_bg_win(row, col, self.lcdc.bg_map_select())
+                self.decode_bg_win(row, col, self.lcdc.bg_map_select())?
             };
 
             self.display[display_offset + dot as usize] = color;
         }
 
         if !self.lcdc.obj_enable() {
-            return;
+            return Ok(());
         }
 
         let ly = ly as i16;
@@ -171,7 +171,7 @@ impl PPU {
                         || self.display[offset] == lcd::PALETTE[0]
                     {
                         let mut color = self
-                            .decode_tile(row as u16, col as u16, tile, 0x8000, pal, true)
+                            .decode_tile(row as u16, col as u16, tile, 0x8000, pal, true)?
                             .unwrap_or(self.display[offset]);
 
                         #[cfg(feature = "debug")]
@@ -188,26 +188,29 @@ impl PPU {
                 }
             }
         }
+
+        Ok(())
     }
 
     // decode bg and window pixel
-    fn decode_bg_win(&self, row: u16, col: u16, map: u16) -> Pixel {
+    fn decode_bg_win(&self, row: u16, col: u16, map: u16) -> Result<Pixel, Error> {
         // tile pixel
         let prow = row % 8;
         let pcol = 7 - col % 8;
         // tile index
         let tile_index_address = map + 32 * (row / 8) + (col / 8);
-        let tile_index = self.read(tile_index_address);
+        let tile_index = self.read(tile_index_address)?;
 
-        self.decode_tile(
-            prow,
-            pcol,
-            tile_index,
-            self.lcdc.bg_window_data_select(),
-            self.palette.bgp,
-            false,
-        )
-        .unwrap()
+        Ok(self
+            .decode_tile(
+                prow,
+                pcol,
+                tile_index,
+                self.lcdc.bg_window_data_select(),
+                self.palette.bgp,
+                false,
+            )?
+            .unwrap())
     }
 
     // decode tile pixel color (None if reansparent)
@@ -219,19 +222,19 @@ impl PPU {
         data_select: u16,
         pal: u8,
         opacity: bool,
-    ) -> Option<Pixel> {
+    ) -> Result<Option<Pixel>, Error> {
         // tile data (each row takes 2 bytes so a full 8x8 tile consists of 16 bytes)
         let tile_data_offset = decode_tile_data_offset(index, data_select);
         let data_address = data_select + tile_data_offset * 16 + (prow * 2);
-        let tile_data_lo = (self.read(data_address) >> pcol) & 1;
-        let tile_data_hi = (self.read(data_address + 1) >> pcol) & 1;
+        let tile_data_lo = (self.read(data_address)? >> pcol) & 1;
+        let tile_data_hi = (self.read(data_address + 1)? >> pcol) & 1;
         // decode color
         let pal_index = (tile_data_hi << 1) | tile_data_lo;
         if opacity && pal_index == 0 {
-            return None;
+            return Ok(None);
         }
         let color_index = (pal >> (2 * pal_index)) & 0b11;
-        Some(lcd::PALETTE[color_index as usize])
+        Ok(Some(lcd::PALETTE[color_index as usize]))
     }
 }
 
@@ -249,17 +252,8 @@ impl Update for PPU {
     fn update(&mut self, ticks: u64, request: &mut Request) {
         let line = self.stat.ly();
 
-        #[cfg(fixme)]
-        {
-            for _ in 0..ticks / 4 {
-                self.stat.update(4, request);
-            }
-            self.stat.update(ticks % 4, request);
-        }
-        self.stat.update(ticks, request);
-
-        if line < 144 && line != self.stat.ly() {
-            self.draw_scanline(line);
+        if self.stat.update(ticks, request) {
+            self.draw_scanline(line).unwrap();
         }
     }
 }
@@ -267,7 +261,7 @@ impl Update for PPU {
 impl Device for PPU {
     const DEBUG_NAME: &'static str = "Pixel Processing Unit";
 
-    fn read(&self, address: u16) -> u8 {
+    fn read(&self, address: u16) -> Result<u8, Error> {
         match address {
             0x8000..=0x9fff => self.video_ram.read(address),
             0xfe00..=0xfe9f => self.oam.read(address),
@@ -277,29 +271,31 @@ impl Device for PPU {
             0xff44..=0xff45 => self.stat.read(address),
             0xff47..=0xff49 => self.palette.read(address),
             0xff4a..=0xff4b => self.window.read(address),
-            _ => invalid_read(address),
+            _ => Err(Error::InvalidAddr(address)),
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) {
+    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
         match address {
             0x8000..=0x9fff => self.video_ram.write(address, data),
             0xfe00..=0xfe9f => self.oam.write(address, data),
             0xff40 => {
-                self.lcdc.write(address, data);
+                self.lcdc.write(address, data)?;
 
                 if !self.lcdc.lcd_on() {
                     info!("Turn off LCD display");
 
                     self.clear_display()
                 }
+
+                Ok(())
             }
             0xff41 => self.stat.write(address, data),
             0xff42..=0xff43 => self.scroll.write(address, data),
             0xff44..=0xff45 => self.stat.write(address, data),
             0xff47..=0xff49 => self.palette.write(address, data),
             0xff4a..=0xff4b => self.window.write(address, data),
-            _ => invalid_write(address),
+            _ => return Err(Error::InvalidAddr(address)),
         }
     }
 }

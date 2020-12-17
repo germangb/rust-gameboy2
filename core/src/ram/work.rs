@@ -1,4 +1,4 @@
-use crate::device::{invalid_read, invalid_write, Device};
+use crate::{device::Device, error::Error};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -23,18 +23,20 @@ impl Default for WorkRAM {
 impl Device for WorkRAM {
     const DEBUG_NAME: &'static str = "Work RAM";
 
-    fn read(&self, address: u16) -> u8 {
+    fn read(&self, address: u16) -> Result<u8, Error> {
         match address {
-            0xc000..=0xdfff => self.data[address as usize - OFFSET],
-            _ => invalid_read(address),
+            0xc000..=0xdfff => Ok(self.data[address as usize - OFFSET]),
+            _ => Err(Error::InvalidAddr(address)),
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) {
+    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
         match address {
             0xc000..=0xdfff => self.data[address as usize - OFFSET] = data,
-            _ => invalid_write(address),
+            _ => return Err(Error::InvalidAddr(address)),
         }
+
+        Ok(())
     }
 }
 
@@ -46,12 +48,15 @@ mod test {
     fn work_ram() {
         let mut emu = Emulator::new(NoCartridge);
 
-        emu.write(0xc000, 1);
-        emu.write(0xcfff, 2);
+        emu.write(0xc000, 1).unwrap();
+        emu.write(0xcfff, 2).unwrap();
 
         assert_eq!(
             [1, 2],
-            [emu.work_ram.read(0xc000), emu.work_ram.read(0xcfff)]
+            [
+                emu.work_ram.read(0xc000).unwrap(),
+                emu.work_ram.read(0xcfff).unwrap()
+            ]
         );
     }
 }

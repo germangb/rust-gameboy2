@@ -1,6 +1,7 @@
 use crate::{
     cartridge::{ram_banks, Cartridge},
-    device::{invalid_read, invalid_write, Device},
+    device::Device,
+    error::Error,
 };
 use log::info;
 #[cfg(feature = "serde")]
@@ -43,28 +44,31 @@ impl Cartridge for MBC1 {}
 impl Device for MBC1 {
     const DEBUG_NAME: &'static str = "ROM (MBC1)";
 
-    fn read(&self, address: u16) -> u8 {
+    fn read(&self, address: u16) -> Result<u8, Error> {
         match address {
-            0x0000..=0x3fff => self.rom.get(address as usize).copied().unwrap_or(0xff),
+            0x0000..=0x3fff => Ok(self.rom.get(address as usize).copied().unwrap_or(0xff)),
             0x4000..=0x7fff => {
                 let addr = self.rom_addr(address);
-                self.rom.get(addr).copied().unwrap_or(0)
+                Ok(self.rom.get(addr).copied().unwrap_or(0))
             }
             0xa000..=0xbfff => {
                 if self.ram_enable {
-                    self.ram
+                    let data = self
+                        .ram
                         .get(self.ram_bank)
                         .map(|bank| bank[address as usize - 0xa000])
-                        .unwrap_or(0)
+                        .unwrap_or(0);
+
+                    Ok(data)
                 } else {
-                    0
+                    Ok(0)
                 }
             }
-            _ => invalid_read(address),
+            _ => Err(Error::InvalidAddr(address)),
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) {
+    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
         match address {
             // Before external RAM can be read or written, it must be enabled by writing to this
             // address space. It is recommended to disable external RAM after accessing it, in order
@@ -109,7 +113,9 @@ impl Device for MBC1 {
                     bank[address as usize - 0xa000] = data
                 }
             }
-            _ => invalid_write(address),
+            _ => return Err(Error::InvalidAddr(address)),
         }
+
+        Ok(())
     }
 }

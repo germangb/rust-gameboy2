@@ -1,4 +1,4 @@
-use core::{cartridge::Cartridge, device::Device};
+use core::{cartridge::Cartridge, device::Device, error::Error};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -163,34 +163,35 @@ impl<S: Sensor> PoketCamera<S> {
 impl<S: Sensor> Device for PoketCamera<S> {
     const DEBUG_NAME: &'static str = "Game Boy Camera";
 
-    fn read(&self, addr: u16) -> u8 {
-        match addr {
-            0x0000..=0x3fff => ROM[addr as usize],
+    fn read(&self, address: u16) -> Result<u8, Error> {
+        match address {
+            0x0000..=0x3fff => Ok(ROM[address as usize]),
             0x4000..=0x7fff => {
                 let offset = 0x4000 * self.rom_bank;
-                ROM[offset + addr as usize - 0x4000]
+
+                Ok(ROM[offset + address as usize - 0x4000])
             }
             0xa000..=0xbfff => match self.mode {
                 // Reading from RAM or registers is always enabled. Writing to registers is always
                 // enabled. Disabled on reset.
-                Mode::Ram => self.ram[0x2000 * self.ram_bank + addr as usize - 0xa000],
-                Mode::Cam => match 0xa000 + (addr % 0x80) {
-                    0xa000 => self.registers.a000 & 0x7,
-                    0xa001 => 0,
-                    0xa002 => 0,
-                    0xa003 => 0,
-                    0xa004 => 0,
-                    0xa005 => 0,
-                    0xa006..=0xa035 => self.registers.a006[addr as usize - 0xa006],
+                Mode::Ram => Ok(self.ram[0x2000 * self.ram_bank + address as usize - 0xa000]),
+                Mode::Cam => match 0xa000 + (address % 0x80) {
+                    0xa000 => Ok(self.registers.a000 & 0x7),
+                    0xa001 => Ok(0),
+                    0xa002 => Ok(0),
+                    0xa003 => Ok(0),
+                    0xa004 => Ok(0),
+                    0xa005 => Ok(0),
+                    0xa006..=0xa035 => Ok(self.registers.a006[address as usize - 0xa006]),
                     _ => panic!(),
                 },
             },
-            _ => panic!(),
+            _ => Err(Error::InvalidAddr(address)),
         }
     }
 
-    fn write(&mut self, addr: u16, data: u8) {
-        match addr {
+    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
+        match address {
             0x0000..=0x1fff => {
                 self.ram_enabled = data & 0xf == 0xa;
                 self.ram_enabled = true;
@@ -210,21 +211,21 @@ impl<S: Sensor> Device for PoketCamera<S> {
             }
             0xa000..=0xbfff => match self.mode {
                 Mode::Ram if self.ram_enabled => {
-                    self.ram[0x2000 * self.ram_bank + addr as usize - 0xa000] = data
+                    self.ram[0x2000 * self.ram_bank + address as usize - 0xa000] = data
                 }
-                Mode::Cam => match 0xa000 + (addr % 0x80) {
+                Mode::Cam => match 0xa000 + (address % 0x80) {
                     0xa000 => self.registers.a000 = data & 0x7,
                     0xa001 => self.registers.a001 = data,
                     0xa002 => self.registers.a002 = data,
                     0xa003 => self.registers.a003 = data,
                     0xa004 => self.registers.a004 = data,
                     0xa005 => self.registers.a005 = data,
-                    0xa006..=0xa035 => self.registers.a006[addr as usize - 0xa006] = data,
+                    0xa006..=0xa035 => self.registers.a006[address as usize - 0xa006] = data,
                     _ => panic!(),
                 },
                 _ => {}
             },
-            _ => panic!(),
+            _ => return Err(Error::InvalidAddr(address)),
         }
 
         // capture image
@@ -232,6 +233,8 @@ impl<S: Sensor> Device for PoketCamera<S> {
             self.capture();
             self.registers.a000 ^= 1;
         }
+
+        Ok(())
     }
 }
 

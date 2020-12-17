@@ -1,7 +1,4 @@
-use crate::{
-    cartridge::Cartridge,
-    device::{invalid_read, invalid_write, Device},
-};
+use crate::{cartridge::Cartridge, device::Device, error::Error};
 use log::warn;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -27,15 +24,15 @@ impl Cartridge for ROM {}
 impl Device for ROM {
     const DEBUG_NAME: &'static str = "ROM";
 
-    fn read(&self, address: u16) -> u8 {
+    fn read(&self, address: u16) -> Result<u8, Error> {
         match address {
-            0x0000..=0x7fff => self.rom[address as usize],
-            0xa000..=0xbfff => self.ram[address as usize - 0xa000],
-            _ => invalid_read(address),
+            0x0000..=0x7fff => Ok(self.rom[address as usize]),
+            0xa000..=0xbfff => Ok(self.ram[address as usize - 0xa000]),
+            _ => Err(Error::InvalidAddr(address)),
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) {
+    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
         match address {
             0x0000..=0x7fff => {
                 warn!(
@@ -44,7 +41,9 @@ impl Device for ROM {
                 );
             }
             0xa000..=0xbfff => self.ram[address as usize - 0xa000] = data,
-            _ => invalid_write(address),
+            _ => return Err(Error::InvalidAddr(address)),
         }
+
+        Ok(())
     }
 }

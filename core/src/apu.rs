@@ -1,4 +1,4 @@
-use crate::device::{invalid_read, invalid_write, Device};
+use crate::{device::Device, error::Error};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -9,11 +9,13 @@ pub struct APU {}
 impl Device for APU {
     const DEBUG_NAME: &'static str = "Audio Processing Unit";
 
-    fn read(&self, address: u16) -> u8 {
-        0xff
+    fn read(&self, address: u16) -> Result<u8, Error> {
+        Ok(0xff)
     }
 
-    fn write(&mut self, address: u16, data: u8) {}
+    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
+        Ok(())
+    }
 }
 
 #[cfg(test)]

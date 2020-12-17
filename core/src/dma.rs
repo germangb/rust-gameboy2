@@ -1,8 +1,4 @@
-use crate::{
-    device::{invalid_read, invalid_write, Device},
-    irq::Request,
-    Update,
-};
+use crate::{device::Device, error::Error, Request, Update};
 use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -40,22 +36,24 @@ impl Update for DMA {
 impl Device for DMA {
     const DEBUG_NAME: &'static str = "OAM DMA";
 
-    fn read(&self, address: u16) -> u8 {
+    fn read(&self, address: u16) -> Result<u8, Error> {
         if address != 0xff46 {
-            invalid_read(address);
+            Err(Error::InvalidAddr(address))
+        } else {
+            Ok(self.dma)
         }
-        self.dma
     }
 
-    fn write(&mut self, address: u16, data: u8) {
+    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
         if address != 0xff46 {
-            invalid_write(address);
+            Err(Error::InvalidAddr(address))
+        } else {
+            info!("OAM DMA Register: {:02x}", self.dma);
+
+            self.dma = data;
+            self.clocks = DURATION;
+            Ok(())
         }
-
-        info!("OAM DMA Register: {:02x}", self.dma);
-
-        self.dma = data;
-        self.clocks = DURATION;
     }
 }
 
@@ -67,7 +65,7 @@ mod test {
     #[test]
     fn oam_dma_start_address() {
         let mut emu = Emulator::new(NoCartridge);
-        emu.write(0xff46, 0xab);
+        emu.write(0xff46, 0xab).unwrap();
 
         assert_eq!(0xab00, emu.oam_dma.start_address());
     }
@@ -77,7 +75,7 @@ mod test {
         let mut emu = Emulator::new(NoCartridge);
         let mut states = vec![emu.oam_dma.is_active()];
 
-        emu.write(0xff46, 0xab);
+        emu.write(0xff46, 0xab).unwrap();
         states.push(emu.oam_dma.is_active());
 
         for _ in 0..160 - 4 {

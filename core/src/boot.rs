@@ -1,4 +1,4 @@
-use crate::device::{invalid_read, invalid_write, Device};
+use crate::{device::Device, error::Error};
 use log::{error, info};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -27,39 +27,36 @@ impl Boot {
 impl Device for Boot {
     const DEBUG_NAME: &'static str = "BOOT Section";
 
-    fn read(&self, address: u16) -> u8 {
+    fn read(&self, address: u16) -> Result<u8, Error> {
         match address {
             0x0000..=0x00ff if self.enabled => {
                 if cfg!(feature = "boot") {
-                    ROM[address as usize]
+                    Ok(ROM[address as usize])
                 } else {
-                    error!("Emulator must be build with the \"boot\" feature flag in order to run the boot sequence");
-                    panic!();
+                    panic!("Emulator must be build with the \"boot\" feature flag in order to run the boot sequence");
                 }
             }
             0x0000..=0x00ff => panic!("BOOT section disabled"),
-            0xff50 => {
-                if self.enabled {
-                    0x00
-                } else {
-                    0xff
-                }
-            }
-            _ => invalid_read(address),
+            0xff50 => Ok(if self.enabled { 0x00 } else { 0xff }),
+            _ => Err(Error::InvalidAddr(address)),
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) {
+    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
         match address {
-            0x0000..=0x00ff => panic!("BOOT section disabled"),
+            0x0000..=0x00ff => {
+                panic!("BOOT section disabled");
+            }
             0xff50 => {
                 if self.enabled && data != 0 {
                     info!("BOOT section disabled: {:#02x}", data);
 
                     self.enabled = false;
                 }
+
+                Ok(())
             }
-            _ => invalid_write(address),
+            _ => Err(Error::InvalidAddr(address)),
         }
     }
 }
@@ -74,14 +71,17 @@ mod test {
     #[cfg(feature = "boot")]
     #[test]
     fn boot() {
-        let mut boot = Boot::default();
+        let boot = Boot::default();
 
         let mut read = Vec::new();
         for i in 0..=0xff {
             read.push(boot.read(i));
         }
 
-        assert_eq!(ROM, &read[..])
+        assert_eq!(
+            Ok(ROM.to_vec()),
+            read.into_iter().collect::<Result<Vec<u8>, _>>()
+        )
     }
 
     #[test]
@@ -89,7 +89,7 @@ mod test {
         let mut boot = Boot::default();
 
         let e0 = boot.is_enabled();
-        boot.write(0xff50, 0x1);
+        boot.write(0xff50, 0x1).unwrap();
         let e1 = boot.is_enabled();
 
         assert_eq!([true, false], [e0, e1]);
@@ -100,8 +100,8 @@ mod test {
     fn boot_panic_read() {
         let mut boot = Boot::default();
 
-        boot.write(0xff50, 1);
-        boot.read(0x00);
+        boot.write(0xff50, 1).unwrap();
+        boot.read(0x0000).unwrap();
     }
 
     #[test]
@@ -109,7 +109,7 @@ mod test {
     fn boot_panic_write() {
         let mut boot = Boot::default();
 
-        boot.write(0xff50, 1);
-        boot.write(0xff, 0);
+        boot.write(0xff50, 1).unwrap();
+        boot.write(0x00ff, 0).unwrap();
     }
 }

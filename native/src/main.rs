@@ -75,13 +75,13 @@ fn run(app: &App, cartridge: impl Cartridge) {
     let mut window = Window::new(&app.window_title(), 160, 144, opts).unwrap();
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
-    let mut gb = GameBoy::new(cartridge);
+    let mut gb = GameBoy::new(cartridge).unwrap();
     let mut debug = false;
 
     if app.skip_boot {
         info!("Skip BOOT sequence.");
 
-        gb.skip_boot();
+        gb.skip_boot().unwrap();
     }
 
     while window.is_open() {
@@ -94,7 +94,7 @@ fn run(app: &App, cartridge: impl Cartridge) {
         handle_key(&window, &mut gb, Key::Up, Button::Up);
         handle_key(&window, &mut gb, Key::Down, Button::Down);
 
-        gb.update_frame();
+        gb.update_frame().unwrap();
 
         if window.is_key_pressed(Key::C, KeyRepeat::No) {
             info!("{:02x?}", gb.cpu().registers());
@@ -125,7 +125,7 @@ fn run(app: &App, cartridge: impl Cartridge) {
 
 fn handle_key(window: &Window, gb: &mut GameBoy<impl Cartridge>, key: Key, button: Button) {
     if window.is_key_pressed(key, KeyRepeat::No) {
-        gb.press(&button);
+        gb.press(&button).unwrap();
     }
     if window.is_key_released(key) {
         gb.release(&button);
@@ -140,6 +140,7 @@ fn main() -> Result<(), Error> {
             //.filter(Some("core"), LevelFilter::Trace)
             //.filter(Some("core::cpu"), LevelFilter::Off)
             //.filter(Some("core::cartridge"), LevelFilter::Off)
+            .filter(Some("core::ppu"), LevelFilter::Warn)
             .filter(Some(module_path!()), LevelFilter::Trace)
             .init();
     }

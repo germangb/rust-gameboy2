@@ -10,7 +10,7 @@ edition = "2018"
 default = ["camera"]
 
 [dependencies]
-core = { path = "../core" }
+core = { path = "../core", features = ["debug"] }
 camera = { path = "../camera", optional = true }
 pretty_env_logger = "0.4.0"
 structopt = "0.3"

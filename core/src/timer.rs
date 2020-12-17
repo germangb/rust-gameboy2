@@ -1,9 +1,4 @@
-use crate::{
-    device::{invalid_read, invalid_write, Device},
-    irq::Request,
-    utils::ClockDecimate,
-    Update, CLOCK,
-};
+use crate::{device::Device, error::Error, utils::ClockDecimate, Request, Update, CLOCK};
 use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -71,17 +66,17 @@ impl Update for Timer {
 impl Device for Timer {
     const DEBUG_NAME: &'static str = "Timer";
 
-    fn read(&self, address: u16) -> u8 {
+    fn read(&self, address: u16) -> Result<u8, Error> {
         match address {
-            0xff04 => self.div,
-            0xff05 => self.tima,
-            0xff06 => self.tma,
-            0xff07 => self.tac,
-            _ => invalid_read(address),
+            0xff04 => Ok(self.div),
+            0xff05 => Ok(self.tima),
+            0xff06 => Ok(self.tma),
+            0xff07 => Ok(self.tac),
+            _ => Err(Error::InvalidAddr(address)),
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) {
+    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
         match address {
             0xff04 => self.div = 0,
             0xff05 => self.tima = data,
@@ -96,15 +91,17 @@ impl Device for Timer {
                 self.tac = data;
                 self.update_tima_clock();
             }
-            _ => invalid_write(address),
+            _ => return Err(Error::InvalidAddr(address)),
         }
+
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::Timer;
-    use crate::{cartridge::NoCartridge, device::Device, irq::Request, Emulator, Update};
+    use crate::{cartridge::NoCartridge, device::Device, Emulator, Request, Update};
 
     #[test]
     fn timer_interrupt() {
@@ -114,8 +111,8 @@ mod test {
         let mut states = Vec::new();
 
         // enable CLOCK / 1024 timer
-        timer.write(0xff07, 0b0000_0100);
-        timer.write(0xff05, 0xfe);
+        timer.write(0xff07, 0b0000_0100).unwrap();
+        timer.write(0xff05, 0xfe).unwrap();
 
         timer.update(4, &mut request);
         states.push(request.timer); // false
@@ -137,11 +134,11 @@ mod test {
         let mut emu = Emulator::new(NoCartridge);
         emu.timer.div = 0x95;
 
-        let mut states = vec![emu.timer.read(0xff04)];
+        let mut states = vec![emu.timer.read(0xff04).unwrap()];
 
-        emu.write(0xff04, 0xab);
+        emu.write(0xff04, 0xab).unwrap();
 
-        states.push(emu.timer.read(0xff04));
+        states.push(emu.timer.read(0xff04).unwrap());
 
         assert_eq!(vec![0x95, 0x00], states);
     }
@@ -150,17 +147,17 @@ mod test {
     fn tma() {
         let mut emu = Emulator::new(NoCartridge);
 
-        emu.write(0xff06, 0xab);
+        emu.write(0xff06, 0xab).unwrap();
 
-        assert_eq!(0xab, emu.timer.read(0xff06))
+        assert_eq!(0xab, emu.timer.read(0xff06).unwrap())
     }
 
     #[test]
     fn tac() {
         let mut emu = Emulator::new(NoCartridge);
 
-        emu.write(0xff07, 0xaf);
+        emu.write(0xff07, 0xaf).unwrap();
 
-        assert_eq!(0xaf, emu.timer.read(0xff07))
+        assert_eq!(0xaf, emu.timer.read(0xff07).unwrap())
     }
 }

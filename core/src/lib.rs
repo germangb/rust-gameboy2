@@ -24,7 +24,7 @@ use crate::{
     cpu::CPU,
     device::{Address, Device},
     dma::DMA,
-    irq::{Request, IRQ},
+    irq::IRQ,
     joypad::Joypad,
     ppu::PPU,
     ram::{HighRAM, WorkRAM},
@@ -36,6 +36,7 @@ use serde::{Deserialize, Serialize};
 use std::cell::Cell;
 
 // re-exports
+use crate::error::Error;
 pub use gb::GameBoy;
 pub use joypad::Button;
 pub use ppu::lcd;
@@ -46,6 +47,7 @@ pub mod cartridge;
 pub mod cpu;
 pub mod device;
 mod dma;
+pub mod error;
 mod gb;
 mod irq;
 mod joypad;
@@ -55,6 +57,15 @@ mod timer;
 mod utils;
 
 const CLOCK: u64 = 4_194_304;
+
+#[derive(Default)]
+pub struct Request {
+    pub vblank: bool,
+    pub stat: bool,
+    pub joypad: bool,
+    pub serial: bool,
+    pub timer: bool,
+}
 
 trait Update {
     fn update(&mut self, ticks: u64, request: &mut Request);
@@ -103,10 +114,10 @@ impl<C: Cartridge> Emulator<C> {
         self.ppu.set_debug_overlays(b);
     }
 
-    fn update(&mut self) {
+    fn update(&mut self) -> Result<(), Error> {
         if self.running.get() {
             let mut cpu = self.cpu.take().unwrap();
-            let ticks = cpu.update(self);
+            let ticks = cpu.update(self)?;
             self.cpu = Some(cpu);
             let mut request = Request::default();
 
@@ -115,27 +126,30 @@ impl<C: Cartridge> Emulator<C> {
             self.timer.update(ticks, &mut request);
 
             // request IF register with requested interrupts.
-            self.update_irq(&request);
+            self.update_irq(&request)?;
+            Ok(())
         } else {
-            warn!("Emulator is no longer running")
+            panic!("Emulator is no longer running")
         }
     }
 
-    fn update_frame(&mut self) {
+    fn update_frame(&mut self) -> Result<(), Error> {
         if self.running.get() {
             // run until VBLANK
-            while self.read(0xff41) & 0b11 != 0b01 {
-                self.update();
+            while self.read(0xff41)? & 0b11 != 0b01 {
+                self.update()?;
             }
 
             self.ppu.finish();
 
             // run until next OAM search
-            while self.read(0xff41) & 0b11 != 0b10 {
-                self.update();
+            while self.read(0xff41)? & 0b11 != 0b10 {
+                self.update()?;
             }
+
+            Ok(())
         } else {
-            warn!("Emulator is no longer running")
+            panic!("Emulator is no longer running")
         }
     }
 
@@ -144,12 +158,12 @@ impl<C: Cartridge> Emulator<C> {
     }
 
     #[rustfmt::skip]
-    fn read_io(&self, address: Address) -> u8 {
+    fn read_io(&self, address: Address) -> Result<u8, Error> {
         match address {
             0xff00          => self.joypad.read(address),
             0xff01..=0xff02 => {
                 warn!("Port/Mode not implemented {:04x}", address);
-                0
+                Ok(0)
             },
             0xff04..=0xff07 => self.timer.read(address),
             0xff0f          => self.irq.read(address),
@@ -160,24 +174,25 @@ impl<C: Cartridge> Emulator<C> {
             0xff47..=0xff4b => self.ppu.read(address),
             0xff4f          => {
                 warn!("Game Boy Color (VRAM Bank Select)");
-                0x00
+                Ok(0)
             },
             0xff50          => self.boot.read(address),
             0xff51..=0xff55 => todo!("Game Boy color"),
             0xff68..=0xff6a => todo!("Game Boy color (DMA)"),
             _               => {
                 warn!("Unknown IO address: {:04x}", address);
-                0xff
+                Ok(0xff)
             },
         }
     }
 
     #[rustfmt::skip]
-    fn write_io(&mut self, address: Address, data: u8) {
+    fn write_io(&mut self, address: Address, data: u8) -> Result<(), Error> {
         match address {
             0xff00          => self.joypad.write(address, data),
             0xff01..=0xff02 => {
                 warn!("Port/Mode not implemented: {:04x}, {:02x}", address, data);
+                Ok(())
             },
             0xff04..=0xff07 => self.timer.write(address, data),
             0xff0f          => self.irq.write(address, data),
@@ -185,29 +200,33 @@ impl<C: Cartridge> Emulator<C> {
             0xff30..=0xff3f => self.apu.write(address, data),
             0xff40..=0xff45 => self.ppu.write(address, data),
             0xff46          => {
-                self.oam_dma.write(address, data);
+                self.oam_dma.write(address, data)?;
 
                 // do the OAM transfer all at once, then the emulator will block certain
                 // locations in memory until the corresponding number of cycles has elapsed.
                 if self.oam_dma.is_active() {
-                    self.oam_dma_transfer();
+                    self.oam_dma_transfer()?;
                 }
+
+                Ok(())
             }
             0xff47..=0xff4b => self.ppu.write(address, data),
             0xff4f          => {
                 warn!("Game Boy Color (VRAM Bank Select): {:02x}", data);
+                Ok(())
             },
             0xff50          => self.boot.write(address, data),
             0xff51..=0xff55 => todo!("Game Boy color"),
             0xff68..=0xff6a => todo!("Game Boy color (DMA)"),
             _               => {
                 warn!("Unknown IO address: {:04x}, data: {:02x}", address, data);
+                Ok(())
             },
         }
     }
 
-    fn update_irq(&mut self, request: &Request) {
-        let mut fi = self.read(0xff0f);
+    fn update_irq(&mut self, request: &Request) -> Result<(), Error> {
+        let mut fi = self.read(0xff0f)?;
 
         if request.vblank {
             //info!("Request VBLANK interrupt");
@@ -235,26 +254,28 @@ impl<C: Cartridge> Emulator<C> {
             fi |= 0b0001_0000
         }
 
-        self.write(0xff0f, fi);
+        self.write(0xff0f, fi)?;
+        Ok(())
     }
 
-    fn oam_dma_transfer(&mut self) {
+    fn oam_dma_transfer(&mut self) -> Result<(), Error> {
         let src = self.oam_dma.start_address();
 
         let src = src..=src | 0x9f;
         let dst = 0xfe00..0xfe9f;
 
         for (src, dst) in src.zip(dst) {
-            let data = self.read(src);
-            self.write(dst, data);
+            let data = self.read(src)?;
+            self.write(dst, data)?;
         }
+        Ok(())
     }
 }
 
 impl<C: Cartridge> Device for Emulator<C> {
     const DEBUG_NAME: &'static str = "Emulator";
 
-    fn read(&self, address: u16) -> u8 {
+    fn read(&self, address: u16) -> Result<u8, Error> {
         let boot = self.boot.is_enabled();
 
         match address {
@@ -265,31 +286,30 @@ impl<C: Cartridge> Device for Emulator<C> {
             0xc000..=0xdfff => self.work_ram.read(address),
             // Nintendo says use of this area is prohibited.
             0xe000..=0xfdff => {
-                warn!("Echo RAM");
-                warn!("Nintendo says use of this area is prohibited");
+                warn!("Nintendo says use of this area is prohibited (Echo RAM).");
+
                 self.read(address - 0xe000 + 0xc000)
             }
             0xfe00..=0xfe9f => self.ppu.read(address),
             0xfea0..=0xfeff => {
-                return 0x42;
+                error!("Nintendo says use of this area is prohibited (Unused).");
+
+                return Ok(0x42);
 
                 // emulate behavior depending on device & hardware revision
                 // https://gbdev.io/pandocs/#fea0-feff-range
                 todo!();
 
-                error!("Memory region not in use");
-                error!("Nintendo says use of this area is prohibited!");
                 self.stop_running();
-                0x00
+                Ok(0x00)
             }
             0xff00..=0xff7f => self.read_io(address),
             0xff80..=0xfffe => self.high_ram.read(address),
             0xffff => self.irq.read(address),
-            _ => unreachable!(),
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) {
+    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
         let boot = self.boot.is_enabled();
 
         match address {
@@ -300,78 +320,79 @@ impl<C: Cartridge> Device for Emulator<C> {
             0xc000..=0xdfff => self.work_ram.write(address, data),
             // Nintendo says use of this area is prohibited.
             0xe000..=0xfdff => {
-                error!("Echo RAM");
-                error!("Nintendo says use of this area is prohibited");
+                error!("Nintendo says use of this area is prohibited (Echo RAM).");
+
                 self.stop_running();
+                Ok(())
             }
             0xfe00..=0xfe9f => self.ppu.write(address, data),
             0xfea0..=0xfeff => {
-                return;
+                error!("Nintendo says use of this area is prohibited (Unused).");
+
+                return Ok(());
 
                 // emulate behavior depending on device & hardware revision
                 // https://gbdev.io/pandocs/#fea0-feff-range
                 todo!();
 
-                error!("Memory region not in use");
-                error!("Nintendo says use of this area is prohibited!");
                 self.stop_running();
+                Ok(())
             }
             0xff00..=0xff7f => self.write_io(address, data),
             0xff80..=0xfffe => self.high_ram.write(address, data),
             0xffff => self.irq.write(address, data),
-            _ => unreachable!(),
         }
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::{
-        cartridge::{Cartridge, NoCartridge},
-        device::Device,
-        irq::Request,
-        Emulator,
-    };
+    use crate::{cartridge::NoCartridge, device::Device, Emulator, Request};
 
     #[test]
     fn update_irq() {
         let mut emu = Emulator::new(NoCartridge);
         let mut fi = Vec::new();
 
-        fi.push(emu.read(0xff0f));
+        fi.push(emu.read(0xff0f).unwrap());
 
         emu.update_irq(&Request {
             vblank: true,
             ..Default::default()
-        });
-        fi.push(emu.read(0xff0f));
+        })
+        .unwrap();
+        fi.push(emu.read(0xff0f).unwrap());
 
         emu.update_irq(&Request {
             stat: true,
             ..Default::default()
-        });
-        fi.push(emu.read(0xff0f));
+        })
+        .unwrap();
+        fi.push(emu.read(0xff0f).unwrap());
 
         emu.update_irq(&Request {
             timer: true,
             ..Default::default()
-        });
-        fi.push(emu.read(0xff0f));
+        })
+        .unwrap();
+        fi.push(emu.read(0xff0f).unwrap());
 
         emu.update_irq(&Request {
             serial: true,
             ..Default::default()
-        });
-        fi.push(emu.read(0xff0f));
+        })
+        .unwrap();
+        fi.push(emu.read(0xff0f).unwrap());
 
         emu.update_irq(&Request {
             joypad: true,
             ..Default::default()
-        });
-        fi.push(emu.read(0xff0f));
+        })
+        .unwrap();
+        fi.push(emu.read(0xff0f).unwrap());
 
         assert_eq!(
-            vec![0b00000, 0b00001, 0b00011, 0b00111, 0b01111, 0b11111,],
+            vec![0b00000, 0b00001, 0b00011, 0b00111, 0b01111, 0b11111],
             fi
         );
     }

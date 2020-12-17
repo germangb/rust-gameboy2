@@ -1,16 +1,7 @@
-use crate::device::{invalid_read, invalid_write, Device};
+use crate::{device::Device, error::Error};
 use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-
-#[derive(Default)]
-pub struct Request {
-    pub vblank: bool,
-    pub stat: bool,
-    pub joypad: bool,
-    pub serial: bool,
-    pub timer: bool,
-}
 
 #[derive(Default, Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -22,15 +13,15 @@ pub struct IRQ {
 impl Device for IRQ {
     const DEBUG_NAME: &'static str = "IRQ";
 
-    fn read(&self, address: u16) -> u8 {
+    fn read(&self, address: u16) -> Result<u8, Error> {
         match address {
-            0xff0f => self.fi,
-            0xffff => self.ie,
-            _ => invalid_read(address),
+            0xff0f => Ok(self.fi),
+            0xffff => Ok(self.ie),
+            _ => Err(Error::InvalidAddr(address)),
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) {
+    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
         match address {
             0xff0f => self.fi = data,
             0xffff => {
@@ -38,8 +29,9 @@ impl Device for IRQ {
 
                 self.ie = data
             }
-            _ => invalid_write(address),
+            _ => return Err(Error::InvalidAddr(address)),
         }
+        Ok(())
     }
 }
 
@@ -51,8 +43,8 @@ mod test {
     fn irq() {
         let mut emu = Emulator::new(NoCartridge);
 
-        emu.write(0xff0f, 0x12);
-        emu.write(0xffff, 0xbc);
+        emu.write(0xff0f, 0x12).unwrap();
+        emu.write(0xffff, 0xbc).unwrap();
 
         assert_eq!([0x12, 0xbc], [emu.irq.fi, emu.irq.ie]);
     }

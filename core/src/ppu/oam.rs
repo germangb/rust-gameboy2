@@ -1,4 +1,4 @@
-use crate::device::{invalid_read, invalid_write, Device};
+use crate::{device::Device, error::Error};
 use bitflags::*;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -48,24 +48,26 @@ impl OAM {
 impl Device for OAM {
     const DEBUG_NAME: &'static str = "OAM Table";
 
-    fn read(&self, address: u16) -> u8 {
+    fn read(&self, address: u16) -> Result<u8, Error> {
         if let 0xfe00..=0xfe9f = address {
             let offset = address - 0xfe00;
             let index = offset as usize / 4;
 
-            match offset % 4 {
+            let data = match offset % 4 {
                 0 => self.table[index].y,
                 1 => self.table[index].x,
                 2 => self.table[index].tile,
                 3 => self.table[index].flags.bits,
                 _ => unreachable!(),
-            }
+            };
+
+            Ok(data)
         } else {
-            invalid_read(address)
+            Err(Error::InvalidAddr(address))
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) {
+    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
         if let 0xfe00..=0xfe9f = address {
             let offset = address - 0xfe00;
             let index = offset as usize / 4;
@@ -77,8 +79,10 @@ impl Device for OAM {
                 3 => self.table[index].flags = Flags::from_bits(data).unwrap(),
                 _ => unreachable!(),
             }
+
+            Ok(())
         } else {
-            invalid_write(address)
+            Err(Error::InvalidAddr(address))
         }
     }
 }
@@ -92,18 +96,18 @@ mod test {
     fn oam() {
         let mut emu = Emulator::new(NoCartridge);
 
-        emu.write(0xfe00, 0x12);
-        emu.write(0xfe9f, 0xef);
+        emu.write(0xfe00, 0x12).unwrap();
+        emu.write(0xfe9f, 0xef).unwrap();
 
         assert_eq!(
             [0x12, 0x12, 0x12, 0xef, 0xef, 0xef,],
             [
-                emu.read(0xfe00),
-                emu.ppu.read(0xfe00),
-                emu.ppu.oam.read(0xfe00),
-                emu.read(0xfe9f),
-                emu.ppu.read(0xfe9f),
-                emu.ppu.oam.read(0xfe9f),
+                emu.read(0xfe00).unwrap(),
+                emu.ppu.read(0xfe00).unwrap(),
+                emu.ppu.oam.read(0xfe00).unwrap(),
+                emu.read(0xfe9f).unwrap(),
+                emu.ppu.read(0xfe9f).unwrap(),
+                emu.ppu.oam.read(0xfe9f).unwrap(),
             ]
         );
     }
@@ -112,13 +116,17 @@ mod test {
     fn oam_flags() {
         let mut emu = Emulator::new(NoCartridge);
 
-        emu.write(0xfe03, 0b10101010);
-        emu.write(0xfe06, 0b10101010);
-        emu.write(0xfe09, 0b10101010);
+        emu.write(0xfe03, 0b10101010).unwrap();
+        emu.write(0xfe06, 0b10101010).unwrap();
+        emu.write(0xfe09, 0b10101010).unwrap();
 
         assert_eq!(
             [0b10101010, 0b10101010, 0b10101010,],
-            [emu.read(0xfe03), emu.read(0xfe06), emu.read(0xfe09),]
+            [
+                emu.read(0xfe03).unwrap(),
+                emu.read(0xfe06).unwrap(),
+                emu.read(0xfe09).unwrap(),
+            ]
         );
         assert_eq!(
             [

@@ -1,7 +1,4 @@
-use crate::{
-    device::{invalid_read, invalid_write, Device},
-    ppu::lcd::Pixel,
-};
+use crate::{device::Device, error::Error};
 use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -19,15 +16,15 @@ pub struct Scroll {
 impl Device for Scroll {
     const DEBUG_NAME: &'static str = "Scroll";
 
-    fn read(&self, address: u16) -> u8 {
+    fn read(&self, address: u16) -> Result<u8, Error> {
         match address {
-            0xff42 => self.scy,
-            0xff43 => self.scx,
-            _ => invalid_read(address),
+            0xff42 => Ok(self.scy),
+            0xff43 => Ok(self.scx),
+            _ => return Err(Error::InvalidAddr(address)),
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) {
+    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
         match address {
             0xff42 => {
                 info!("Register SCY: {:02x}", data);
@@ -39,8 +36,10 @@ impl Device for Scroll {
 
                 self.scx = data
             }
-            _ => invalid_write(address),
+            _ => return Err(Error::InvalidAddr(address)),
         }
+
+        Ok(())
     }
 }
 
@@ -54,28 +53,30 @@ pub struct Window {
 impl Device for Window {
     const DEBUG_NAME: &'static str = "Window";
 
-    fn read(&self, address: u16) -> u8 {
+    fn read(&self, address: u16) -> Result<u8, Error> {
         match address {
-            0xff4a => self.wy,
-            0xff4b => self.wx,
-            _ => invalid_read(address),
+            0xff4a => Ok(self.wy),
+            0xff4b => Ok(self.wx),
+            _ => return Err(Error::InvalidAddr(address)),
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) {
+    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
         match address {
             0xff4a => {
                 info!("Register WY: {:02x}", data);
 
-                self.wy = data
+                self.wy = data;
             }
             0xff4b => {
                 info!("Register WX: {:02x}", data);
 
-                self.wx = data
+                self.wx = data;
             }
-            _ => invalid_write(address),
+            _ => return Err(Error::InvalidAddr(address)),
         }
+
+        Ok(())
     }
 }
 
@@ -102,16 +103,16 @@ fn log_pal(pal: u8) -> String {
 impl Device for Palette {
     const DEBUG_NAME: &'static str = "Color Palette";
 
-    fn read(&self, address: u16) -> u8 {
+    fn read(&self, address: u16) -> Result<u8, Error> {
         match address {
-            0xff47 => self.bgp,
-            0xff48 => self.obp0,
-            0xff49 => self.obp1,
-            _ => invalid_read(address),
+            0xff47 => Ok(self.bgp),
+            0xff48 => Ok(self.obp0),
+            0xff49 => Ok(self.obp1),
+            _ => Err(Error::InvalidAddr(address)),
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) {
+    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
         match address {
             0xff47 => {
                 info!("Register BGP: {:08b} ({})", data, log_pal(data));
@@ -128,8 +129,10 @@ impl Device for Palette {
 
                 self.obp1 = data
             }
-            _ => invalid_write(address),
+            _ => return Err(Error::InvalidAddr(address)),
         }
+
+        Ok(())
     }
 }
 
@@ -141,8 +144,8 @@ mod test {
     fn scroll() {
         let mut emu = Emulator::new(NoCartridge);
 
-        emu.write(0xff42, 0x12);
-        emu.write(0xff43, 0xab);
+        emu.write(0xff42, 0x12).unwrap();
+        emu.write(0xff43, 0xab).unwrap();
 
         assert_eq!([0x12, 0xab], [emu.ppu.scroll.scy, emu.ppu.scroll.scx]);
     }
@@ -151,16 +154,16 @@ mod test {
     fn window() {
         let mut emu = Emulator::new(NoCartridge);
 
-        emu.write(0xff4a, 0x12);
-        emu.write(0xff4b, 0xab);
+        emu.write(0xff4a, 0x12).unwrap();
+        emu.write(0xff4b, 0xab).unwrap();
 
         assert_eq!(
             [0x12, 0x12, 0xab, 0xab],
             [
                 emu.ppu.window.wy,
-                emu.ppu.window.read(0xff4a),
+                emu.ppu.window.read(0xff4a).unwrap(),
                 emu.ppu.window.wx,
-                emu.ppu.window.read(0xff4b)
+                emu.ppu.window.read(0xff4b).unwrap()
             ]
         );
     }
@@ -169,19 +172,19 @@ mod test {
     fn palette() {
         let mut emu = Emulator::new(NoCartridge);
 
-        emu.write(0xff47, 0x01);
-        emu.write(0xff48, 0x9a);
-        emu.write(0xff49, 0xef);
+        emu.write(0xff47, 0x01).unwrap();
+        emu.write(0xff48, 0x9a).unwrap();
+        emu.write(0xff49, 0xef).unwrap();
 
         assert_eq!(
             [0x01, 0x01, 0x9a, 0x9a, 0xef, 0xef,],
             [
                 emu.ppu.palette.bgp,
-                emu.ppu.palette.read(0xff47),
+                emu.ppu.palette.read(0xff47).unwrap(),
                 emu.ppu.palette.obp0,
-                emu.ppu.palette.read(0xff48),
+                emu.ppu.palette.read(0xff48).unwrap(),
                 emu.ppu.palette.obp1,
-                emu.ppu.palette.read(0xff49),
+                emu.ppu.palette.read(0xff49).unwrap(),
             ]
         );
     }

@@ -1,4 +1,4 @@
-use crate::{cartridge::Cartridge, device::Device};
+use crate::{cartridge::Cartridge, device::Device, error::Error};
 use log::info;
 pub use registers::Registers;
 #[cfg(feature = "serde")]
@@ -33,41 +33,42 @@ impl CPU {
         self.ime
     }
 
-    pub(super) fn update<D: Device>(&mut self, device: &mut D) -> u64 {
-        let int = self.int(device);
+    pub(super) fn update<D: Device>(&mut self, device: &mut D) -> Result<u64, Error> {
+        let int = self.int(device)?;
         let cycles = if int != 0 {
             int
         } else if !self.halt {
-            self.exec(device)
+            self.exec(device)?
         } else {
             4
         };
 
-        cycles
+        Ok(cycles)
     }
 
-    fn int<D: Device>(&mut self, device: &mut D) -> u64 {
-        let ie = device.read(0xffff);
-        let if_ = device.read(0xff0f);
+    fn int<D: Device>(&mut self, device: &mut D) -> Result<u64, Error> {
+        let ie = device.read(0xffff)?;
+        let if_ = device.read(0xff0f)?;
         let tr = (ie & if_).trailing_zeros() as u8;
         if tr <= 4 {
             self.halt = false;
         }
         if !self.ime || tr > 4 {
-            return 0;
+            return Ok(0);
         }
-        self.int_v([0x40, 0x48, 0x50, 0x58, 0x60][tr as usize], device);
+        self.int_v([0x40, 0x48, 0x50, 0x58, 0x60][tr as usize], device)?;
         self.ime = false;
-        device.write(0xff0f, if_ & !(1 << tr));
-        4
+        device.write(0xff0f, if_ & !(1 << tr))?;
+        Ok(cycles::unprefixed(0, false)) // NOP
     }
 
-    fn int_v<D: Device>(&mut self, v: u16, device: &mut D) {
-        self.stack_push(self.registers.pc, device);
+    fn int_v<D: Device>(&mut self, v: u16, device: &mut D) -> Result<(), Error> {
+        self.stack_push(self.registers.pc, device)?;
         self.registers.pc = v;
+        Ok(())
     }
 
-    fn exec_opcode_cb<D: Device>(&mut self, device: &mut D, opcode: u8) -> u64 {
+    fn exec_opcode_cb<D: Device>(&mut self, device: &mut D, opcode: u8) -> Result<u64, Error> {
         match opcode {
             // RLC n
             0x00 => self.registers.b = self.rlc_n(self.registers.b),
@@ -78,7 +79,7 @@ impl CPU {
             0x05 => self.registers.l = self.rlc_n(self.registers.l),
             0x06 => {
                 let hl = self.registers.hl();
-                device.write(hl, self.rlc_n(device.read(hl)))
+                device.write(hl, self.rlc_n(device.read(hl)?))?
             }
             0x07 => self.registers.a = self.rlc_n(self.registers.a),
 
@@ -91,7 +92,7 @@ impl CPU {
             0x0d => self.registers.l = self.rrc_n(self.registers.l),
             0x0e => {
                 let hl = self.registers.hl();
-                device.write(hl, self.rrc_n(device.read(hl)))
+                device.write(hl, self.rrc_n(device.read(hl)?))?
             }
             0x0f => self.registers.a = self.rrc_n(self.registers.a),
 
@@ -104,7 +105,7 @@ impl CPU {
             0x15 => self.registers.l = self.rl_n(self.registers.l),
             0x16 => {
                 let hl = self.registers.hl();
-                device.write(hl, self.rl_n(device.read(hl)))
+                device.write(hl, self.rl_n(device.read(hl)?))?
             }
             0x17 => self.registers.a = self.rl_n(self.registers.a),
 
@@ -117,7 +118,7 @@ impl CPU {
             0x1d => self.registers.l = self.rr_n(self.registers.l),
             0x1e => {
                 let hl = self.registers.hl();
-                device.write(hl, self.rr_n(device.read(hl)))
+                device.write(hl, self.rr_n(device.read(hl)?))?
             }
             0x1f => self.registers.a = self.rr_n(self.registers.a),
 
@@ -130,7 +131,7 @@ impl CPU {
             0x35 => self.registers.l = self.swap_n(self.registers.l),
             0x36 => {
                 let hl = self.registers.hl();
-                device.write(hl, self.swap_n(device.read(hl)))
+                device.write(hl, self.swap_n(device.read(hl)?))?
             }
             0x37 => self.registers.a = self.swap_n(self.registers.a),
 
@@ -141,7 +142,7 @@ impl CPU {
             0x43 => self.bit_b_n(0, self.registers.e),
             0x44 => self.bit_b_n(0, self.registers.h),
             0x45 => self.bit_b_n(0, self.registers.l),
-            0x46 => self.bit_b_n(0, device.read(self.registers.hl())),
+            0x46 => self.bit_b_n(0, device.read(self.registers.hl())?),
             0x47 => self.bit_b_n(0, self.registers.a),
 
             // BIT 1,n
@@ -151,7 +152,7 @@ impl CPU {
             0x4b => self.bit_b_n(1, self.registers.e),
             0x4c => self.bit_b_n(1, self.registers.h),
             0x4d => self.bit_b_n(1, self.registers.l),
-            0x4e => self.bit_b_n(1, device.read(self.registers.hl())),
+            0x4e => self.bit_b_n(1, device.read(self.registers.hl())?),
             0x4f => self.bit_b_n(1, self.registers.a),
 
             // BIT 2,n
@@ -161,7 +162,7 @@ impl CPU {
             0x53 => self.bit_b_n(2, self.registers.e),
             0x54 => self.bit_b_n(2, self.registers.h),
             0x55 => self.bit_b_n(2, self.registers.l),
-            0x56 => self.bit_b_n(2, device.read(self.registers.hl())),
+            0x56 => self.bit_b_n(2, device.read(self.registers.hl())?),
             0x57 => self.bit_b_n(2, self.registers.a),
 
             // BIT 3,n
@@ -171,7 +172,7 @@ impl CPU {
             0x5b => self.bit_b_n(3, self.registers.e),
             0x5c => self.bit_b_n(3, self.registers.h),
             0x5d => self.bit_b_n(3, self.registers.l),
-            0x5e => self.bit_b_n(3, device.read(self.registers.hl())),
+            0x5e => self.bit_b_n(3, device.read(self.registers.hl())?),
             0x5f => self.bit_b_n(3, self.registers.a),
 
             // BIT 4,n
@@ -181,7 +182,7 @@ impl CPU {
             0x63 => self.bit_b_n(4, self.registers.e),
             0x64 => self.bit_b_n(4, self.registers.h),
             0x65 => self.bit_b_n(4, self.registers.l),
-            0x66 => self.bit_b_n(4, device.read(self.registers.hl())),
+            0x66 => self.bit_b_n(4, device.read(self.registers.hl())?),
             0x67 => self.bit_b_n(4, self.registers.a),
 
             // BIT 5,n
@@ -191,7 +192,7 @@ impl CPU {
             0x6b => self.bit_b_n(5, self.registers.e),
             0x6c => self.bit_b_n(5, self.registers.h),
             0x6d => self.bit_b_n(5, self.registers.l),
-            0x6e => self.bit_b_n(5, device.read(self.registers.hl())),
+            0x6e => self.bit_b_n(5, device.read(self.registers.hl())?),
             0x6f => self.bit_b_n(5, self.registers.a),
 
             // BIT 6,n
@@ -201,7 +202,7 @@ impl CPU {
             0x73 => self.bit_b_n(6, self.registers.e),
             0x74 => self.bit_b_n(6, self.registers.h),
             0x75 => self.bit_b_n(6, self.registers.l),
-            0x76 => self.bit_b_n(6, device.read(self.registers.hl())),
+            0x76 => self.bit_b_n(6, device.read(self.registers.hl())?),
             0x77 => self.bit_b_n(6, self.registers.a),
 
             // BIT 7,n
@@ -211,7 +212,7 @@ impl CPU {
             0x7b => self.bit_b_n(7, self.registers.e),
             0x7c => self.bit_b_n(7, self.registers.h),
             0x7d => self.bit_b_n(7, self.registers.l),
-            0x7e => self.bit_b_n(7, device.read(self.registers.hl())),
+            0x7e => self.bit_b_n(7, device.read(self.registers.hl())?),
             0x7f => self.bit_b_n(7, self.registers.a),
 
             // RES 0,n
@@ -223,7 +224,7 @@ impl CPU {
             0x85 => self.registers.l = self.res_b_n(0, self.registers.l),
             0x86 => {
                 let hl = self.registers.hl();
-                device.write(hl, self.res_b_n(0, device.read(self.registers.hl())))
+                device.write(hl, self.res_b_n(0, device.read(self.registers.hl())?))?
             }
             0x87 => self.registers.a = self.res_b_n(0, self.registers.a),
 
@@ -236,7 +237,7 @@ impl CPU {
             0x8d => self.registers.l = self.res_b_n(1, self.registers.l),
             0x8e => {
                 let hl = self.registers.hl();
-                device.write(hl, self.res_b_n(1, device.read(self.registers.hl())))
+                device.write(hl, self.res_b_n(1, device.read(self.registers.hl())?))?
             }
             0x8f => self.registers.a = self.res_b_n(1, self.registers.a),
 
@@ -249,7 +250,7 @@ impl CPU {
             0x95 => self.registers.l = self.res_b_n(2, self.registers.l),
             0x96 => {
                 let hl = self.registers.hl();
-                device.write(hl, self.res_b_n(2, device.read(self.registers.hl())))
+                device.write(hl, self.res_b_n(2, device.read(self.registers.hl())?))?
             }
             0x97 => self.registers.a = self.res_b_n(2, self.registers.a),
 
@@ -262,7 +263,7 @@ impl CPU {
             0x9d => self.registers.l = self.res_b_n(3, self.registers.l),
             0x9e => {
                 let hl = self.registers.hl();
-                device.write(hl, self.res_b_n(3, device.read(self.registers.hl())))
+                device.write(hl, self.res_b_n(3, device.read(self.registers.hl())?))?
             }
             0x9f => self.registers.a = self.res_b_n(3, self.registers.a),
 
@@ -275,7 +276,7 @@ impl CPU {
             0xa5 => self.registers.l = self.res_b_n(4, self.registers.l),
             0xa6 => {
                 let hl = self.registers.hl();
-                device.write(hl, self.res_b_n(4, device.read(self.registers.hl())))
+                device.write(hl, self.res_b_n(4, device.read(self.registers.hl())?))?
             }
             0xa7 => self.registers.a = self.res_b_n(4, self.registers.a),
 
@@ -288,7 +289,7 @@ impl CPU {
             0xad => self.registers.l = self.res_b_n(5, self.registers.l),
             0xae => {
                 let hl = self.registers.hl();
-                device.write(hl, self.res_b_n(5, device.read(self.registers.hl())))
+                device.write(hl, self.res_b_n(5, device.read(self.registers.hl())?))?
             }
             0xaf => self.registers.a = self.res_b_n(5, self.registers.a),
 
@@ -301,7 +302,7 @@ impl CPU {
             0xb5 => self.registers.l = self.res_b_n(6, self.registers.l),
             0xb6 => {
                 let hl = self.registers.hl();
-                device.write(hl, self.res_b_n(6, device.read(self.registers.hl())))
+                device.write(hl, self.res_b_n(6, device.read(self.registers.hl())?))?
             }
             0xb7 => self.registers.a = self.res_b_n(6, self.registers.a),
 
@@ -314,7 +315,7 @@ impl CPU {
             0xbd => self.registers.l = self.res_b_n(7, self.registers.l),
             0xbe => {
                 let hl = self.registers.hl();
-                device.write(hl, self.res_b_n(7, device.read(self.registers.hl())))
+                device.write(hl, self.res_b_n(7, device.read(self.registers.hl())?))?
             }
             0xbf => self.registers.a = self.res_b_n(7, self.registers.a),
 
@@ -327,7 +328,7 @@ impl CPU {
             0xc5 => self.registers.l = self.set_b_n(0, self.registers.l),
             0xc6 => {
                 let hl = self.registers.hl();
-                device.write(hl, self.set_b_n(0, device.read(self.registers.hl())))
+                device.write(hl, self.set_b_n(0, device.read(self.registers.hl())?))?
             }
             0xc7 => self.registers.a = self.set_b_n(0, self.registers.a),
 
@@ -340,7 +341,7 @@ impl CPU {
             0xcd => self.registers.l = self.set_b_n(1, self.registers.l),
             0xce => {
                 let hl = self.registers.hl();
-                device.write(hl, self.set_b_n(1, device.read(self.registers.hl())))
+                device.write(hl, self.set_b_n(1, device.read(self.registers.hl())?))?
             }
             0xcf => self.registers.a = self.set_b_n(1, self.registers.a),
 
@@ -353,7 +354,7 @@ impl CPU {
             0xd5 => self.registers.l = self.set_b_n(2, self.registers.l),
             0xd6 => {
                 let hl = self.registers.hl();
-                device.write(hl, self.set_b_n(2, device.read(self.registers.hl())))
+                device.write(hl, self.set_b_n(2, device.read(self.registers.hl())?))?
             }
             0xd7 => self.registers.a = self.set_b_n(2, self.registers.a),
 
@@ -366,7 +367,7 @@ impl CPU {
             0xdd => self.registers.l = self.set_b_n(3, self.registers.l),
             0xde => {
                 let hl = self.registers.hl();
-                device.write(hl, self.set_b_n(3, device.read(self.registers.hl())))
+                device.write(hl, self.set_b_n(3, device.read(self.registers.hl())?))?
             }
             0xdf => self.registers.a = self.set_b_n(3, self.registers.a),
 
@@ -379,7 +380,7 @@ impl CPU {
             0xe5 => self.registers.l = self.set_b_n(4, self.registers.l),
             0xe6 => {
                 let hl = self.registers.hl();
-                device.write(hl, self.set_b_n(4, device.read(self.registers.hl())))
+                device.write(hl, self.set_b_n(4, device.read(self.registers.hl())?))?
             }
             0xe7 => self.registers.a = self.set_b_n(4, self.registers.a),
 
@@ -392,7 +393,7 @@ impl CPU {
             0xed => self.registers.l = self.set_b_n(5, self.registers.l),
             0xee => {
                 let hl = self.registers.hl();
-                device.write(hl, self.set_b_n(5, device.read(self.registers.hl())))
+                device.write(hl, self.set_b_n(5, device.read(self.registers.hl())?))?
             }
             0xef => self.registers.a = self.set_b_n(5, self.registers.a),
 
@@ -405,7 +406,7 @@ impl CPU {
             0xf5 => self.registers.l = self.set_b_n(6, self.registers.l),
             0xf6 => {
                 let hl = self.registers.hl();
-                device.write(hl, self.set_b_n(6, device.read(self.registers.hl())))
+                device.write(hl, self.set_b_n(6, device.read(self.registers.hl())?))?
             }
             0xf7 => self.registers.a = self.set_b_n(6, self.registers.a),
 
@@ -418,7 +419,7 @@ impl CPU {
             0xfd => self.registers.l = self.set_b_n(7, self.registers.l),
             0xfe => {
                 let hl = self.registers.hl();
-                device.write(hl, self.set_b_n(7, device.read(self.registers.hl())))
+                device.write(hl, self.set_b_n(7, device.read(self.registers.hl())?))?
             }
             0xff => self.registers.a = self.set_b_n(7, self.registers.a),
 
@@ -431,7 +432,7 @@ impl CPU {
             0x3d => self.registers.l = self.srl_n(self.registers.l),
             0x3e => {
                 let hl = self.registers.hl();
-                device.write(hl, self.srl_n(device.read(self.registers.hl())))
+                device.write(hl, self.srl_n(device.read(self.registers.hl())?))?
             }
             0x3f => self.registers.a = self.srl_n(self.registers.a),
 
@@ -444,7 +445,7 @@ impl CPU {
             0x25 => self.registers.l = self.sla_n(self.registers.l),
             0x26 => {
                 let hl = self.registers.hl();
-                device.write(hl, self.sla_n(device.read(self.registers.hl())))
+                device.write(hl, self.sla_n(device.read(self.registers.hl())?))?
             }
             0x27 => self.registers.a = self.sla_n(self.registers.a),
 
@@ -457,15 +458,15 @@ impl CPU {
             0x2d => self.registers.l = self.sra_n(self.registers.l),
             0x2e => {
                 let hl = self.registers.hl();
-                device.write(hl, self.sra_n(device.read(self.registers.hl())))
+                device.write(hl, self.sra_n(device.read(self.registers.hl())?))?
             }
             0x2f => self.registers.a = self.sra_n(self.registers.a),
         }
 
-        cycles::prefixed(opcode)
+        Ok(cycles::prefixed(opcode))
     }
 
-    fn exec_opcode<D: Device>(&mut self, device: &mut D, opcode: u8) -> u64 {
+    fn exec_opcode<D: Device>(&mut self, device: &mut D, opcode: u8) -> Result<u64, Error> {
         let mut branch = false;
 
         match opcode {
@@ -476,10 +477,10 @@ impl CPU {
             0x83 => self.add_n(self.registers.e),
             0x84 => self.add_n(self.registers.h),
             0x85 => self.add_n(self.registers.l),
-            0x86 => self.add_n(device.read(self.registers.hl())),
+            0x86 => self.add_n(device.read(self.registers.hl())?),
             0x87 => self.add_n(self.registers.a),
             0xc6 => {
-                let d8 = self.fetch(device);
+                let d8 = self.fetch(device)?;
                 self.add_n(d8)
             }
             // ADC A,n
@@ -489,10 +490,10 @@ impl CPU {
             0x8b => self.adc_n(self.registers.e),
             0x8c => self.adc_n(self.registers.h),
             0x8d => self.adc_n(self.registers.l),
-            0x8e => self.adc_n(device.read(self.registers.hl())),
+            0x8e => self.adc_n(device.read(self.registers.hl())?),
             0x8f => self.adc_n(self.registers.a),
             0xce => {
-                let d8 = self.fetch(device);
+                let d8 = self.fetch(device)?;
                 self.adc_n(d8)
             }
             // SUB n
@@ -502,10 +503,10 @@ impl CPU {
             0x93 => self.sub_n(self.registers.e),
             0x94 => self.sub_n(self.registers.h),
             0x95 => self.sub_n(self.registers.l),
-            0x96 => self.sub_n(device.read(self.registers.hl())),
+            0x96 => self.sub_n(device.read(self.registers.hl())?),
             0x97 => self.sub_n(self.registers.a),
             0xd6 => {
-                let d8 = self.fetch(device);
+                let d8 = self.fetch(device)?;
                 self.sub_n(d8)
             }
             // ADC A,n
@@ -515,10 +516,10 @@ impl CPU {
             0x9b => self.sbc_n(self.registers.e),
             0x9c => self.sbc_n(self.registers.h),
             0x9d => self.sbc_n(self.registers.l),
-            0x9e => self.sbc_n(device.read(self.registers.hl())),
+            0x9e => self.sbc_n(device.read(self.registers.hl())?),
             0x9f => self.sbc_n(self.registers.a),
             0xde => {
-                let d8 = self.fetch(device);
+                let d8 = self.fetch(device)?;
                 self.sbc_n(d8)
             }
             // AND n
@@ -528,10 +529,10 @@ impl CPU {
             0xa3 => self.and_n(self.registers.e),
             0xa4 => self.and_n(self.registers.h),
             0xa5 => self.and_n(self.registers.l),
-            0xa6 => self.and_n(device.read(self.registers.hl())),
+            0xa6 => self.and_n(device.read(self.registers.hl())?),
             0xa7 => self.and_n(self.registers.a),
             0xe6 => {
-                let d8 = self.fetch(device);
+                let d8 = self.fetch(device)?;
                 self.and_n(d8)
             }
             // XOR n
@@ -541,10 +542,10 @@ impl CPU {
             0xab => self.xor_n(self.registers.e),
             0xac => self.xor_n(self.registers.h),
             0xad => self.xor_n(self.registers.l),
-            0xae => self.xor_n(device.read(self.registers.hl())),
+            0xae => self.xor_n(device.read(self.registers.hl())?),
             0xaf => self.xor_n(self.registers.a),
             0xee => {
-                let d8 = self.fetch(device);
+                let d8 = self.fetch(device)?;
                 self.xor_n(d8)
             }
             // OR n
@@ -554,10 +555,10 @@ impl CPU {
             0xb3 => self.or_n(self.registers.e),
             0xb4 => self.or_n(self.registers.h),
             0xb5 => self.or_n(self.registers.l),
-            0xb6 => self.or_n(device.read(self.registers.hl())),
+            0xb6 => self.or_n(device.read(self.registers.hl())?),
             0xb7 => self.or_n(self.registers.a),
             0xf6 => {
-                let d8 = self.fetch(device);
+                let d8 = self.fetch(device)?;
                 self.or_n(d8)
             }
             // CP n
@@ -567,10 +568,10 @@ impl CPU {
             0xbb => self.cp_n(self.registers.e),
             0xbc => self.cp_n(self.registers.h),
             0xbd => self.cp_n(self.registers.l),
-            0xbe => self.cp_n(device.read(self.registers.hl())),
+            0xbe => self.cp_n(device.read(self.registers.hl())?),
             0xbf => self.cp_n(self.registers.a),
             0xfe => {
-                let d8 = self.fetch(device);
+                let d8 = self.fetch(device)?;
                 self.cp_n(d8)
             }
             // INC n
@@ -579,7 +580,7 @@ impl CPU {
             0x24 => self.registers.h = self.inc_n(self.registers.h),
             0x34 => {
                 let hl = self.registers.hl();
-                device.write(hl, self.inc_n(device.read(hl)));
+                device.write(hl, self.inc_n(device.read(hl)?))?;
             }
             0x0c => self.registers.c = self.inc_n(self.registers.c),
             0x1c => self.registers.e = self.inc_n(self.registers.e),
@@ -592,7 +593,7 @@ impl CPU {
             0x25 => self.registers.h = self.dec_n(self.registers.h),
             0x35 => {
                 let hl = self.registers.hl();
-                device.write(hl, self.dec_n(device.read(hl)));
+                device.write(hl, self.dec_n(device.read(hl)?))?;
             }
             0x0d => self.registers.c = self.dec_n(self.registers.c),
             0x1d => self.registers.e = self.dec_n(self.registers.e),
@@ -636,7 +637,7 @@ impl CPU {
             // ADD SP,r8
             0xe8 => {
                 let a = self.registers.sp;
-                let b = i16::from(self.fetch_signed(device)) as u16;
+                let b = i16::from(self.fetch_signed(device)?) as u16;
                 flag!(self.registers, C = (a & 0xff) + (b & 0xff) > 0xff);
                 flag!(self.registers, H = (a & 0xf) + (b & 0xf) > 0xf);
                 flag!(self.registers, N = false);
@@ -715,8 +716,8 @@ impl CPU {
             0x43 => self.registers.b = self.registers.e,
             0x44 => self.registers.b = self.registers.h,
             0x45 => self.registers.b = self.registers.l,
-            0x46 => self.registers.b = device.read(self.registers.hl()),
-            0x06 => self.registers.b = self.fetch(device),
+            0x46 => self.registers.b = device.read(self.registers.hl())?,
+            0x06 => self.registers.b = self.fetch(device)?,
             0x47 => self.registers.b = self.registers.a,
             // LD C,n
             0x48 => self.registers.c = self.registers.b,
@@ -725,8 +726,8 @@ impl CPU {
             0x4b => self.registers.c = self.registers.e,
             0x4c => self.registers.c = self.registers.h,
             0x4d => self.registers.c = self.registers.l,
-            0x4e => self.registers.c = device.read(self.registers.hl()),
-            0x0e => self.registers.c = self.fetch(device),
+            0x4e => self.registers.c = device.read(self.registers.hl())?,
+            0x0e => self.registers.c = self.fetch(device)?,
             0x4f => self.registers.c = self.registers.a,
             // LD D,n
             0x50 => self.registers.d = self.registers.b,
@@ -735,8 +736,8 @@ impl CPU {
             0x53 => self.registers.d = self.registers.e,
             0x54 => self.registers.d = self.registers.h,
             0x55 => self.registers.d = self.registers.l,
-            0x56 => self.registers.d = device.read(self.registers.hl()),
-            0x16 => self.registers.d = self.fetch(device),
+            0x56 => self.registers.d = device.read(self.registers.hl())?,
+            0x16 => self.registers.d = self.fetch(device)?,
             0x57 => self.registers.d = self.registers.a,
             // LD E,n
             0x58 => self.registers.e = self.registers.b,
@@ -745,8 +746,8 @@ impl CPU {
             0x5b => self.registers.e = self.registers.e,
             0x5c => self.registers.e = self.registers.h,
             0x5d => self.registers.e = self.registers.l,
-            0x5e => self.registers.e = device.read(self.registers.hl()),
-            0x1e => self.registers.e = self.fetch(device),
+            0x5e => self.registers.e = device.read(self.registers.hl())?,
+            0x1e => self.registers.e = self.fetch(device)?,
             0x5f => self.registers.e = self.registers.a,
             // LD H,n
             0x60 => self.registers.h = self.registers.b,
@@ -755,8 +756,8 @@ impl CPU {
             0x63 => self.registers.h = self.registers.e,
             0x64 => self.registers.h = self.registers.h,
             0x65 => self.registers.h = self.registers.l,
-            0x66 => self.registers.h = device.read(self.registers.hl()),
-            0x26 => self.registers.h = self.fetch(device),
+            0x66 => self.registers.h = device.read(self.registers.hl())?,
+            0x26 => self.registers.h = self.fetch(device)?,
             0x67 => self.registers.h = self.registers.a,
             // LD L,n
             0x68 => self.registers.l = self.registers.b,
@@ -765,18 +766,18 @@ impl CPU {
             0x6b => self.registers.l = self.registers.e,
             0x6c => self.registers.l = self.registers.h,
             0x6d => self.registers.l = self.registers.l,
-            0x6e => self.registers.l = device.read(self.registers.hl()),
-            0x2e => self.registers.l = self.fetch(device),
+            0x6e => self.registers.l = device.read(self.registers.hl())?,
+            0x2e => self.registers.l = self.fetch(device)?,
             0x6f => self.registers.l = self.registers.a,
             // LD (HL),n
-            0x70 => device.write(self.registers.hl(), self.registers.b),
-            0x71 => device.write(self.registers.hl(), self.registers.c),
-            0x72 => device.write(self.registers.hl(), self.registers.d),
-            0x73 => device.write(self.registers.hl(), self.registers.e),
-            0x74 => device.write(self.registers.hl(), self.registers.h),
-            0x75 => device.write(self.registers.hl(), self.registers.l),
-            0x36 => device.write(self.registers.hl(), self.fetch(device)),
-            0x77 => device.write(self.registers.hl(), self.registers.a),
+            0x70 => device.write(self.registers.hl(), self.registers.b)?,
+            0x71 => device.write(self.registers.hl(), self.registers.c)?,
+            0x72 => device.write(self.registers.hl(), self.registers.d)?,
+            0x73 => device.write(self.registers.hl(), self.registers.e)?,
+            0x74 => device.write(self.registers.hl(), self.registers.h)?,
+            0x75 => device.write(self.registers.hl(), self.registers.l)?,
+            0x36 => device.write(self.registers.hl(), self.fetch(device)?)?,
+            0x77 => device.write(self.registers.hl(), self.registers.a)?,
             // LD A,n
             0x78 => self.registers.a = self.registers.b,
             0x79 => self.registers.a = self.registers.c,
@@ -784,34 +785,34 @@ impl CPU {
             0x7b => self.registers.a = self.registers.e,
             0x7c => self.registers.a = self.registers.h,
             0x7d => self.registers.a = self.registers.l,
-            0x7e => self.registers.a = device.read(self.registers.hl()),
-            0x3e => self.registers.a = self.fetch(device),
+            0x7e => self.registers.a = device.read(self.registers.hl())?,
+            0x3e => self.registers.a = self.fetch(device)?,
             0x7f => self.registers.a = self.registers.a,
             // LD (a16),SP
             0x08 => {
-                let a16 = self.fetch_word(device);
+                let a16 = self.fetch_word(device)?;
                 let sp = self.registers.sp;
-                device.write(a16, (sp & 0xff) as u8);
-                device.write(a16 + 1, ((sp >> 8) & 0xff) as u8);
+                device.write(a16, (sp & 0xff) as u8)?;
+                device.write(a16 + 1, ((sp >> 8) & 0xff) as u8)?;
             }
             // LD nn,d16
             0x01 => {
-                let d = self.fetch_word(device);
+                let d = self.fetch_word(device)?;
                 self.registers.set_bc(d)
             }
             0x11 => {
-                let d = self.fetch_word(device);
+                let d = self.fetch_word(device)?;
                 self.registers.set_de(d)
             }
             0x21 => {
-                let d = self.fetch_word(device);
+                let d = self.fetch_word(device)?;
                 self.registers.set_hl(d)
             }
-            0x31 => self.registers.sp = self.fetch_word(device),
+            0x31 => self.registers.sp = self.fetch_word(device)?,
             // LD HL,SP+r8
             0xf8 => {
                 let a = self.registers.sp;
-                let b = i16::from(self.fetch_signed(device)) as u16;
+                let b = i16::from(self.fetch_signed(device)?) as u16;
                 flag!(self.registers, C = (a & 0x00ff) + (b & 0x00ff) > 0x00ff);
                 flag!(self.registers, H = (a & 0x000f) + (b & 0x000f) > 0x000f);
                 flag!(self.registers, N = false);
@@ -821,25 +822,25 @@ impl CPU {
             // LD SP,HL
             0xf9 => self.registers.sp = self.registers.hl(),
             // LD (nn),A
-            0x02 => device.write(self.registers.bc(), self.registers.a),
-            0x12 => device.write(self.registers.de(), self.registers.a),
+            0x02 => device.write(self.registers.bc(), self.registers.a)?,
+            0x12 => device.write(self.registers.de(), self.registers.a)?,
             0x22 => {
                 let hl = self.registers.hl();
-                device.write(hl, self.registers.a);
+                device.write(hl, self.registers.a)?;
                 self.registers.set_hl(hl.wrapping_add(1));
             }
             0x32 => {
                 let hl = self.registers.hl();
-                device.write(hl, self.registers.a);
+                device.write(hl, self.registers.a)?;
                 self.registers.set_hl(hl.wrapping_sub(1));
             }
             // LD A,(nn)
-            0x0a => self.registers.a = device.read(self.registers.bc()),
-            0x1a => self.registers.a = device.read(self.registers.de()),
+            0x0a => self.registers.a = device.read(self.registers.bc())?,
+            0x1a => self.registers.a = device.read(self.registers.de())?,
             0x2a => {
                 self.registers.a = {
                     let hl = self.registers.hl();
-                    let d = device.read(hl);
+                    let d = device.read(hl)?;
                     self.registers.set_hl(hl.wrapping_add(1));
                     d
                 }
@@ -847,33 +848,33 @@ impl CPU {
             0x3a => {
                 self.registers.a = {
                     let hl = self.registers.hl();
-                    let d = device.read(hl);
+                    let d = device.read(hl)?;
                     self.registers.set_hl(hl.wrapping_sub(1));
                     d
                 }
             }
 
-            0xe2 => device.write(0xff00 + u16::from(self.registers.c), self.registers.a),
-            0xf2 => self.registers.a = device.read(0xff00 + u16::from(self.registers.c)),
+            0xe2 => device.write(0xff00 + u16::from(self.registers.c), self.registers.a)?,
+            0xf2 => self.registers.a = device.read(0xff00 + u16::from(self.registers.c))?,
 
             0xe0 => {
-                let a8 = self.fetch(device) as u16;
-                device.write(0xff00 + a8, self.registers.a);
+                let a8 = self.fetch(device)? as u16;
+                device.write(0xff00 + a8, self.registers.a)?;
             }
             0xf0 => {
-                let a8 = self.fetch(device) as u16;
-                self.registers.a = device.read(0xff00 + a8);
+                let a8 = self.fetch(device)? as u16;
+                self.registers.a = device.read(0xff00 + a8)?;
             }
 
-            0xea => device.write(self.fetch_word(device), self.registers.a),
+            0xea => device.write(self.fetch_word(device)?, self.registers.a)?,
             0xfa => {
-                let a16 = self.fetch_word(device);
-                self.registers.a = device.read(a16);
+                let a16 = self.fetch_word(device)?;
+                self.registers.a = device.read(a16)?;
             }
 
             // POP nn
             0xc1 | 0xd1 | 0xe1 | 0xf1 => {
-                let r = self.stack_pop(device);
+                let r = self.stack_pop(device)?;
                 match opcode {
                     0xc1 => self.registers.set_bc(r),
                     0xd1 => self.registers.set_de(r),
@@ -884,68 +885,68 @@ impl CPU {
                 }
             }
             // PUSH nn
-            0xc5 => self.stack_push(self.registers.bc(), device),
-            0xd5 => self.stack_push(self.registers.de(), device),
-            0xe5 => self.stack_push(self.registers.hl(), device),
-            0xf5 => self.stack_push(self.registers.af(), device),
+            0xc5 => self.stack_push(self.registers.bc(), device)?,
+            0xd5 => self.stack_push(self.registers.de(), device)?,
+            0xe5 => self.stack_push(self.registers.hl(), device)?,
+            0xf5 => self.stack_push(self.registers.af(), device)?,
 
             // RET cc
             0xc0 => {
                 if !flag!(self.registers, Z) {
-                    self.registers.pc = self.stack_pop(device);
+                    self.registers.pc = self.stack_pop(device)?;
 
                     branch = true;
                 }
             }
             0xd0 => {
                 if !flag!(self.registers, C) {
-                    self.registers.pc = self.stack_pop(device);
+                    self.registers.pc = self.stack_pop(device)?;
 
                     branch = true;
                 }
             }
             0xc8 => {
                 if flag!(self.registers, Z) {
-                    self.registers.pc = self.stack_pop(device);
+                    self.registers.pc = self.stack_pop(device)?;
 
                     branch = true;
                 }
             }
             0xd8 => {
                 if flag!(self.registers, C) {
-                    self.registers.pc = self.stack_pop(device);
+                    self.registers.pc = self.stack_pop(device)?;
 
                     branch = true;
                 }
             }
             // RET
-            0xc9 => self.registers.pc = self.stack_pop(device),
+            0xc9 => self.registers.pc = self.stack_pop(device)?,
             // RETI
             0xd9 => {
                 self.ime = true;
-                self.registers.pc = self.stack_pop(device);
+                self.registers.pc = self.stack_pop(device)?;
             }
 
-            0xc7 => self.rst_n(0x00, device),
-            0xd7 => self.rst_n(0x10, device),
-            0xe7 => self.rst_n(0x20, device),
-            0xf7 => self.rst_n(0x30, device),
-            0xcf => self.rst_n(0x08, device),
-            0xdf => self.rst_n(0x18, device),
-            0xef => self.rst_n(0x28, device),
-            0xff => self.rst_n(0x38, device),
+            0xc7 => self.rst_n(0x00, device)?,
+            0xd7 => self.rst_n(0x10, device)?,
+            0xe7 => self.rst_n(0x20, device)?,
+            0xf7 => self.rst_n(0x30, device)?,
+            0xcf => self.rst_n(0x08, device)?,
+            0xdf => self.rst_n(0x18, device)?,
+            0xef => self.rst_n(0x28, device)?,
+            0xff => self.rst_n(0x38, device)?,
 
-            0xc4 => branch = self.call_c_n(!flag!(self.registers, Z), device),
-            0xd4 => branch = self.call_c_n(!flag!(self.registers, C), device),
-            0xcc => branch = self.call_c_n(flag!(self.registers, Z), device),
-            0xdc => branch = self.call_c_n(flag!(self.registers, C), device),
-            0xcd => self.call_n(device),
+            0xc4 => branch = self.call_c_n(!flag!(self.registers, Z), device)?,
+            0xd4 => branch = self.call_c_n(!flag!(self.registers, C), device)?,
+            0xcc => branch = self.call_c_n(flag!(self.registers, Z), device)?,
+            0xdc => branch = self.call_c_n(flag!(self.registers, C), device)?,
+            0xcd => self.call_n(device)?,
 
-            0xc2 => branch = self.jp_c_n(!flag!(self.registers, Z), device),
-            0xd2 => branch = self.jp_c_n(!flag!(self.registers, C), device),
-            0xca => branch = self.jp_c_n(flag!(self.registers, Z), device),
-            0xda => branch = self.jp_c_n(flag!(self.registers, C), device),
-            0xc3 => self.registers.pc = self.fetch_word(device),
+            0xc2 => branch = self.jp_c_n(!flag!(self.registers, Z), device)?,
+            0xd2 => branch = self.jp_c_n(!flag!(self.registers, C), device)?,
+            0xca => branch = self.jp_c_n(flag!(self.registers, Z), device)?,
+            0xda => branch = self.jp_c_n(flag!(self.registers, C), device)?,
+            0xc3 => self.registers.pc = self.fetch_word(device)?,
             0xe9 => {
                 // The pdf was ambiguous. Verified with other emulators:
                 // - https://github.com/taisel/GameBoy-Online/blob/master/js/GameBoyCore.js#L2086
@@ -953,12 +954,12 @@ impl CPU {
                 self.registers.pc = self.registers.hl()
             }
 
-            0x20 => branch = self.jr_c(!flag!(self.registers, Z), device),
-            0x30 => branch = self.jr_c(!flag!(self.registers, C), device),
-            0x28 => branch = self.jr_c(flag!(self.registers, Z), device),
-            0x38 => branch = self.jr_c(flag!(self.registers, C), device),
+            0x20 => branch = self.jr_c(!flag!(self.registers, Z), device)?,
+            0x30 => branch = self.jr_c(!flag!(self.registers, C), device)?,
+            0x28 => branch = self.jr_c(flag!(self.registers, Z), device)?,
+            0x38 => branch = self.jr_c(flag!(self.registers, C), device)?,
             0x18 => {
-                self.jr_c(true, device);
+                self.jr_c(true, device)?;
             }
 
             // Misc/control instructions
@@ -977,14 +978,13 @@ impl CPU {
             }
         }
 
-        cycles::unprefixed(opcode, branch)
+        Ok(cycles::unprefixed(opcode, branch))
     }
 
-    fn exec<D: Device>(&mut self, device: &mut D) -> u64 {
-        let pc = self.registers.pc;
-        let opcode = self.fetch(device);
+    fn exec<D: Device>(&mut self, device: &mut D) -> Result<u64, Error> {
+        let opcode = self.fetch(device)?;
         if opcode == 0xcb {
-            let cb = self.fetch(device);
+            let cb = self.fetch(device)?;
 
             info!("Opcode: (CB) {:02x}, {:02x?}", cb, self.registers);
 
@@ -996,37 +996,38 @@ impl CPU {
         }
     }
 
-    fn fetch<D: Device>(&mut self, device: &D) -> u8 {
-        let b = device.read(self.registers.pc);
+    fn fetch<D: Device>(&mut self, device: &D) -> Result<u8, Error> {
+        let opcode = device.read(self.registers.pc)?;
         self.registers.pc += 1;
-        b
+        Ok(opcode)
     }
 
-    fn fetch_word<D: Device>(&mut self, device: &D) -> u16 {
-        let lo = device.read(self.registers.pc) as u16;
-        let hi = device.read(self.registers.pc + 1) as u16;
+    fn fetch_word<D: Device>(&mut self, device: &D) -> Result<u16, Error> {
+        let lo = device.read(self.registers.pc)? as u16;
+        let hi = device.read(self.registers.pc + 1)? as u16;
         self.registers.pc += 2;
-        (hi << 8) | lo
+        Ok((hi << 8) | lo)
     }
 
-    fn fetch_signed<D: Device>(&mut self, device: &D) -> i8 {
-        let n: i8 = unsafe { std::mem::transmute(self.fetch(device)) };
-        n
+    fn fetch_signed<D: Device>(&mut self, device: &D) -> Result<i8, Error> {
+        let data: i8 = unsafe { std::mem::transmute(self.fetch(device)?) };
+        Ok(data)
     }
 
     // Pushes word into the stack
     // Decrements SP by 2
-    fn stack_push<D: Device>(&mut self, nn: u16, device: &mut D) {
+    fn stack_push<D: Device>(&mut self, nn: u16, device: &mut D) -> Result<(), Error> {
         self.registers.sp -= 2;
-        device.write_word(self.registers.sp, nn);
+        device.write_word(self.registers.sp, nn)?;
+        Ok(())
     }
 
     // Pops word from the stack
     // Increments SP by 2
-    fn stack_pop<D: Device>(&mut self, device: &D) -> u16 {
-        let r = device.read_word(self.registers.sp);
+    fn stack_pop<D: Device>(&mut self, device: &D) -> Result<u16, Error> {
+        let data = device.read_word(self.registers.sp)?;
         self.registers.sp += 2;
-        r
+        Ok(data)
     }
 
     // Add n to A.
@@ -1324,9 +1325,10 @@ impl CPU {
     // Pushes present address onto stack.
     // Jump to address $000 + n
     // n = 00,$08,$10,$18,$20,$28,$30,$38
-    fn rst_n<D: Device>(&mut self, n: u8, device: &mut D) {
-        self.stack_push(self.registers.pc, device);
+    fn rst_n<D: Device>(&mut self, n: u8, device: &mut D) -> Result<(), Error> {
+        self.stack_push(self.registers.pc, device)?;
         self.registers.pc = n as u16;
+        Ok(())
     }
 
     // Call Address n if following condition is true:
@@ -1334,20 +1336,21 @@ impl CPU {
     // c = Z = Call if Z flag is set.
     // c = NC, Call if C flag is reset.
     // c = C = Call if C flag is set.
-    fn call_c_n<D: Device>(&mut self, c: bool, device: &mut D) -> bool {
-        let n = self.fetch_word(device);
-        if c {
-            self.stack_push(self.registers.pc, device);
+    fn call_c_n<D: Device>(&mut self, branch: bool, device: &mut D) -> Result<bool, Error> {
+        let n = self.fetch_word(device)?;
+        if branch {
+            self.stack_push(self.registers.pc, device)?;
             self.registers.pc = n;
         }
-        c
+        Ok(branch)
     }
 
     // Push address of next instruction onto the stack and then jump to address n.
-    fn call_n<D: Device>(&mut self, device: &mut D) {
-        let n = self.fetch_word(device);
-        self.stack_push(self.registers.pc, device);
+    fn call_n<D: Device>(&mut self, device: &mut D) -> Result<(), Error> {
+        let n = self.fetch_word(device)?;
+        self.stack_push(self.registers.pc, device)?;
         self.registers.pc = n;
+        Ok(())
     }
 
     // Jump to address n if following condition is true:
@@ -1355,22 +1358,22 @@ impl CPU {
     // c = Z = Call if Z flag is set.
     // c = NC, Call if C flag is reset.
     // c = C =Call if C flag is set.
-    fn jp_c_n<D: Device>(&mut self, c: bool, device: &mut D) -> bool {
-        let n = self.fetch_word(device);
-        if c {
+    fn jp_c_n<D: Device>(&mut self, branch: bool, device: &mut D) -> Result<bool, Error> {
+        let n = self.fetch_word(device)?;
+        if branch {
             self.registers.pc = n;
         }
-        c
+        Ok(branch)
     }
 
     // Add n to current address and jump tp it.
-    fn jr_c<D: Device>(&mut self, c: bool, device: &mut D) -> bool {
-        let n = self.fetch_signed(device);
-        if c {
+    fn jr_c<D: Device>(&mut self, branch: bool, device: &mut D) -> Result<bool, Error> {
+        let n = self.fetch_signed(device)?;
+        if branch {
             let pc = i32::from(self.registers.pc) + i32::from(n);
             self.registers.pc = (pc & 0xffff) as u16;
         }
-        c
+        Ok(branch)
     }
 }
 

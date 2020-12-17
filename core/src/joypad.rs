@@ -1,4 +1,4 @@
-use crate::device::{invalid_read, invalid_write, Device};
+use crate::{device::Device, error::Error};
 use log::{info, warn};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -61,9 +61,9 @@ impl Joypad {
 impl Device for Joypad {
     const DEBUG_NAME: &'static str = "Joypad";
 
-    fn read(&self, address: u16) -> u8 {
+    fn read(&self, address: u16) -> Result<u8, Error> {
         if address != 0xff00 {
-            invalid_read(address);
+            return Err(Error::InvalidAddr(address));
         }
 
         let data = match self.select {
@@ -74,12 +74,12 @@ impl Device for Joypad {
 
         // we're swapping the meaning of 0 and 1 internally
         // so we need to invert the data bits
-        !data & 0b0011_1111
+        Ok(!data & 0b0011_1111)
     }
 
-    fn write(&mut self, address: u16, mut data: u8) {
+    fn write(&mut self, address: u16, mut data: u8) -> Result<(), Error> {
         if address != 0xff00 {
-            invalid_write(address);
+            return Err(Error::InvalidAddr(address));
         }
 
         // we're swapping the meaning of 0 and 1 internally
@@ -93,12 +93,14 @@ impl Device for Joypad {
             Select::Undefined => warn!("Undefined select mode"),
             s => self.select = s,
         }
+
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::{Button, Select};
+    use super::Button;
     use crate::{cartridge::NoCartridge, device::Device, Emulator};
 
     #[test]
@@ -109,9 +111,9 @@ mod test {
         emu.joypad.press(&Button::Select);
 
         // select button row
-        emu.write(0xff00, 0b0001_0000);
+        emu.write(0xff00, 0b0001_0000).unwrap();
 
-        assert_eq!(0b0001_1010, emu.joypad.read(0xff00));
+        assert_eq!(Ok(0b0001_1010), emu.joypad.read(0xff00));
     }
 
     #[test]
@@ -122,8 +124,8 @@ mod test {
         emu.joypad.press(&Button::Up);
 
         // select direction row
-        emu.write(0xff00, 0b0010_0000);
+        emu.write(0xff00, 0b0010_0000).unwrap();
 
-        assert_eq!(0b0010_1010, emu.joypad.read(0xff00));
+        assert_eq!(Ok(0b0010_1010), emu.joypad.read(0xff00));
     }
 }

@@ -5,7 +5,6 @@ const DEFAULT_SECONDS: u32 = 10;
 #[test]
 fn read_timing() {
     integration_test(
-        "01-read_timing",
         include_bytes!("gb-test-roms/mem_timing/individual/01-read_timing.gb"),
         todo!(),
         DEFAULT_SECONDS,
@@ -15,7 +14,6 @@ fn read_timing() {
 #[test]
 fn write_timing() {
     integration_test(
-        "02-write_timing",
         include_bytes!("gb-test-roms/mem_timing/individual/02-write_timing.gb"),
         todo!(),
         DEFAULT_SECONDS,
@@ -25,7 +23,6 @@ fn write_timing() {
 #[test]
 fn modify_timing() {
     integration_test(
-        "03-modify_timing",
         include_bytes!("gb-test-roms/mem_timing/individual/03-modify_timing.gb"),
         todo!(),
         DEFAULT_SECONDS,

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Default)]
 pub struct Request {
     pub vblank: bool,
-    pub lcd_stat: bool,
+    pub stat: bool,
     pub joypad: bool,
     pub serial: bool,
     pub timer: bool,

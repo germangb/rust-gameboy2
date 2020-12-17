@@ -9,10 +9,12 @@ use crate::{
     ram::VideoRAM,
     Update,
 };
-use log::info;
+use log::{info, warn};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "debug")]
+mod debug;
 mod io;
 pub mod lcd;
 mod oam;
@@ -29,6 +31,8 @@ pub struct PPU {
     scroll: Scroll,
     window: Window,
     palette: Palette,
+    #[cfg(feature = "debug")]
+    debug_overlays: bool,
 }
 
 impl PPU {
@@ -38,6 +42,69 @@ impl PPU {
 
     fn clear_display(&mut self) {
         self.display.iter_mut().for_each(|p| *p = lcd::PALETTE[0]);
+    }
+
+    #[cfg(not(feature = "debug"))]
+    pub fn set_debug_overlays(&mut self, _: bool) {
+        warn!("Emulator is not built with debug overlays.");
+    }
+
+    #[cfg(feature = "debug")]
+    pub fn set_debug_overlays(&mut self, b: bool) {
+        self.debug_overlays = b;
+    }
+
+    pub fn finish(&mut self) {
+        #[cfg(feature = "debug")]
+        if self.debug_overlays {
+            self.draw_debug_overlays();
+        }
+    }
+
+    #[cfg(feature = "debug")]
+    fn draw_debug_overlays(&mut self) {
+        use embedded_graphics::{
+            fonts::Text,
+            pixelcolor::Rgb888,
+            prelude::*,
+            primitives::Line,
+            style::{PrimitiveStyle, TextStyle},
+        };
+        use embedded_picofont::FontPico;
+
+        // draw LYC
+        let lyc = self.stat.lyc() as _;
+        Line::new(Point::new(0, lyc), Point::new(lcd::WIDTH as _, lyc))
+            .into_styled(PrimitiveStyle::with_stroke(Rgb888::GREEN, 1))
+            .draw(self.display.as_mut())
+            .unwrap();
+
+        // text
+        let draw = &[
+            format!("SCY={} SCX={}", self.scroll.scy, self.scroll.scx),
+            format!("WY={} WX={}", self.window.wy, self.window.wx),
+            format!(
+                "BGP={:08b} OBP0={:08b} OBP1={:08b}",
+                self.palette.bgp, self.palette.obp0, self.palette.obp1
+            ),
+            format!("LCDC={:08b}", self.lcdc.read(0xff40)),
+            format!(
+                "STAT={:08b} LY={} LYC={}",
+                self.stat.read(0xff41),
+                self.stat.ly(),
+                self.stat.lyc(),
+            ),
+        ];
+
+        for (y, item) in draw.iter().enumerate() {
+            Text::new(
+                &item,
+                Point::new(0, lcd::HEIGHT as i32 - 7 - (y as i32) * 7),
+            )
+            .into_styled(TextStyle::new(FontPico, Rgb888::WHITE))
+            .draw(self.display.as_mut())
+            .unwrap();
+        }
     }
 
     // render the given line to the display buffer
@@ -103,11 +170,20 @@ impl PPU {
                     if !flags.contains(Flags::OBJ_TO_BG_PRIORITY)
                         || self.display[offset] == lcd::PALETTE[0]
                     {
-                        if let Some(color) =
-                            self.decode_tile(row as u16, col as u16, tile, 0x8000, pal, true)
-                        {
-                            self.display[offset] = color;
-                        }
+                        let mut color = self
+                            .decode_tile(row as u16, col as u16, tile, 0x8000, pal, true)
+                            .unwrap_or(self.display[offset]);
+
+                        #[cfg(feature = "debug")]
+                        if self.debug_overlays {
+                            color = if self.lcdc.obj_size() {
+                                debug::mix(color, debug::DEBUG_OBJ_DOUBLE, 0.5)
+                            } else {
+                                debug::mix(color, debug::DEBUG_OBJ, 0.5)
+                            };
+                        };
+
+                        self.display[offset] = color;
                     }
                 }
             }

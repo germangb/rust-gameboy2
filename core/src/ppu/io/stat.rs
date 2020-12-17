@@ -35,6 +35,10 @@ impl STAT {
         self.ly
     }
 
+    pub fn lyc(&self) -> u8 {
+        self.lyc
+    }
+
     fn mode(&self) -> Mode {
         unsafe { std::mem::transmute(self.stat & 0b0000_0011) }
     }
@@ -82,10 +86,10 @@ impl STAT {
         }
 
         // increment line
-        //self.ly += 1;
+        self.ly += 1;
 
         if self.hblank_int() {
-            request.lcd_stat = true;
+            request.stat = true;
         }
         self.set_mode(Mode::HBLANK);
     }
@@ -97,18 +101,15 @@ impl STAT {
             return;
         }
 
-        // increment line
-        self.ly += 1;
-
         if self.ly == 144 {
             if self.vblank_int() {
-                request.lcd_stat = true;
+                request.stat = true;
             }
             request.vblank = true;
             self.set_mode(Mode::VBLANK);
         } else {
             if self.oam_int() {
-                request.lcd_stat = true;
+                request.stat = true;
             }
             self.set_mode(Mode::SEARCH);
         }
@@ -126,7 +127,7 @@ impl STAT {
 
         if self.ly == 154 {
             if self.oam_int() {
-                request.lcd_stat = true;
+                request.stat = true;
             }
             self.ly = 0;
             self.set_mode(Mode::SEARCH);
@@ -150,7 +151,7 @@ impl STAT {
             self.stat |= 0b0000_0100;
 
             if self.ly != ly && self.lyc_int() {
-                request.lcd_stat = true;
+                request.stat = true;
             }
         } else {
             self.stat &= 0b1111_1011;
@@ -178,7 +179,7 @@ impl Device for STAT {
             }
             0xff44 => todo!(),
             0xff45 => {
-                info!("LYC = {:#02x} {:#08b}", data, data);
+                info!("LYC: {:02x}", data);
 
                 self.lyc = data
             }

@@ -19,6 +19,18 @@ struct App {
     #[structopt(short, long)]
     path: Option<PathBuf>,
 
+    /// Force MBC1 memory controller.
+    #[structopt(long)]
+    mbc1: bool,
+
+    /// Force MBC3 memory controller.
+    #[structopt(long)]
+    mbc3: bool,
+
+    /// Force single ROM (+ RAM) memory controller.
+    #[structopt(long)]
+    rom: bool,
+
     #[structopt(long)]
     skip_boot: bool,
 
@@ -64,6 +76,7 @@ fn run(app: &App, cartridge: impl Cartridge) {
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
     let mut gb = GameBoy::new(cartridge);
+    let mut debug = false;
 
     if app.skip_boot {
         info!("Skip BOOT sequence.");
@@ -83,7 +96,16 @@ fn run(app: &App, cartridge: impl Cartridge) {
 
         gb.update_frame();
 
+        if window.is_key_pressed(Key::C, KeyRepeat::No) {
+            info!("{:02x?}", gb.cpu().registers());
+        }
+
         if window.is_key_pressed(Key::D, KeyRepeat::No) {
+            debug = !debug;
+            gb.set_debug_overlays(debug);
+        }
+
+        if window.is_key_pressed(Key::S, KeyRepeat::No) {
             info!("Generating display.bin");
 
             unsafe {
@@ -115,13 +137,16 @@ fn main() -> Result<(), Error> {
 
     if app.verbose {
         pretty_env_logger::formatted_timed_builder()
-            .filter(Some("core"), LevelFilter::Off)
+            //.filter(Some("core"), LevelFilter::Trace)
+            //.filter(Some("core::cpu"), LevelFilter::Off)
+            //.filter(Some("core::cartridge"), LevelFilter::Off)
             .filter(Some(module_path!()), LevelFilter::Trace)
             .init();
     }
 
     if let Some(path) = &app.path {
         let data = read_rom(path)?;
+
         let kind = data[0x147];
         match kind {
             0x00 | 0x08 | 0x09 => {
@@ -129,12 +154,12 @@ fn main() -> Result<(), Error> {
 
                 run(&app, ROM::new(data))
             }
-            0x01 | 0x02 | 0x03 => {
+            0x06 | 0x01 | 0x02 | 0x03 => {
                 info!("Cartridge type: MBC1 ({:02X}h)", kind);
 
                 run(&app, MBC1::new(data))
             }
-            0x0f | 0x10 | 0x11 | 0x12 | 0x13 => {
+            0x1b | 0x0f | 0x10 | 0x11 | 0x12 | 0x13 => {
                 info!("Cartridge type: MBC3 ({:02X}h)", kind);
 
                 run(&app, MBC3::new(data))

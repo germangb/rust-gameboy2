@@ -34,6 +34,10 @@ impl<C: Cartridge> GameBoy<C> {
         emulator
     }
 
+    pub fn set_debug_overlays(&mut self, b: bool) {
+        self.emulator.set_debug_overlay(b)
+    }
+
     pub fn display(&self) -> &Display {
         self.emulator.ppu.display()
     }

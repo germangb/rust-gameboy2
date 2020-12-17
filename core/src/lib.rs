@@ -99,6 +99,10 @@ impl<C> Emulator<C> {
 }
 
 impl<C: Cartridge> Emulator<C> {
+    fn set_debug_overlay(&mut self, b: bool) {
+        self.ppu.set_debug_overlays(b);
+    }
+
     fn update(&mut self) {
         if self.running.get() {
             let mut cpu = self.cpu.take().unwrap();
@@ -123,6 +127,9 @@ impl<C: Cartridge> Emulator<C> {
             while self.read(0xff41) & 0b11 != 0b01 {
                 self.update();
             }
+
+            self.ppu.finish();
+
             // run until next OAM search
             while self.read(0xff41) & 0b11 != 0b10 {
                 self.update();
@@ -207,7 +214,7 @@ impl<C: Cartridge> Emulator<C> {
 
             fi |= 0b0000_0001
         }
-        if request.lcd_stat {
+        if request.stat {
             //info!("Request LCDC interrupt");
 
             fi |= 0b0000_0010
@@ -340,7 +347,7 @@ mod test {
         fi.push(emu.read(0xff0f));
 
         emu.update_irq(&Request {
-            lcd_stat: true,
+            stat: true,
             ..Default::default()
         });
         fi.push(emu.read(0xff0f));

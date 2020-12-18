@@ -1,7 +1,4 @@
-use crate::{
-    device::{Device, Result},
-    error::Error,
-};
+use crate::device::{Device, Result};
 use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -17,29 +14,29 @@ pub struct Scroll {
 }
 
 impl Device for Scroll {
-    const DEBUG_NAME: &'static str = "Scroll";
-
     fn read(&self, address: u16) -> Result<u8> {
-        match address {
-            0xff42 => Ok(self.scy),
-            0xff43 => Ok(self.scx),
-            _ => return Err(Error::InvalidAddr(address)),
+        device_match! {
+            address {
+                0xff42 => Ok(self.scy),
+                0xff43 => Ok(self.scx),
+            }
         }
     }
 
     fn write(&mut self, address: u16, data: u8) -> Result<()> {
-        match address {
-            0xff42 => {
-                info!("Register SCY: {:02x}", data);
+        device_match! {
+            address {
+                0xff42 => {
+                    info!("Register SCY: {:02x}", data);
 
-                self.scy = data
-            }
-            0xff43 => {
-                info!("Register SCX: {:02x}", data);
+                    self.scy = data
+                }
+                0xff43 => {
+                    info!("Register SCX: {:02x}", data);
 
-                self.scx = data
+                    self.scx = data
+                }
             }
-            _ => return Err(Error::InvalidAddr(address)),
         }
 
         Ok(())
@@ -54,29 +51,29 @@ pub struct Window {
 }
 
 impl Device for Window {
-    const DEBUG_NAME: &'static str = "Window";
-
     fn read(&self, address: u16) -> Result<u8> {
-        match address {
-            0xff4a => Ok(self.wy),
-            0xff4b => Ok(self.wx),
-            _ => return Err(Error::InvalidAddr(address)),
+        device_match! {
+            address {
+                0xff4a => Ok(self.wy),
+                0xff4b => Ok(self.wx),
+            }
         }
     }
 
     fn write(&mut self, address: u16, data: u8) -> Result<()> {
-        match address {
-            0xff4a => {
-                info!("Register WY: {:02x}", data);
+        device_match! {
+            address {
+                0xff4a => {
+                    info!("Register WY: {:02x}", data);
 
-                self.wy = data;
-            }
-            0xff4b => {
-                info!("Register WX: {:02x}", data);
+                    self.wy = data;
+                }
+                0xff4b => {
+                    info!("Register WX: {:02x}", data);
 
-                self.wx = data;
+                    self.wx = data;
+                }
             }
-            _ => return Err(Error::InvalidAddr(address)),
         }
 
         Ok(())
@@ -104,35 +101,35 @@ fn log_pal(pal: u8) -> String {
 }
 
 impl Device for Palette {
-    const DEBUG_NAME: &'static str = "Color Palette";
-
     fn read(&self, address: u16) -> Result<u8> {
-        match address {
-            0xff47 => Ok(self.bgp),
-            0xff48 => Ok(self.obp0),
-            0xff49 => Ok(self.obp1),
-            _ => Err(Error::InvalidAddr(address)),
+        device_match! {
+            address {
+                0xff47 => Ok(self.bgp),
+                0xff48 => Ok(self.obp0),
+                0xff49 => Ok(self.obp1),
+            }
         }
     }
 
     fn write(&mut self, address: u16, data: u8) -> Result<()> {
-        match address {
-            0xff47 => {
-                info!("Register BGP: {:08b} ({})", data, log_pal(data));
+        device_match! {
+            address {
+                0xff47 => {
+                    info!("Register BGP: {:08b} ({})", data, log_pal(data));
 
-                self.bgp = data
-            }
-            0xff48 => {
-                info!("Register OBP0: {:08b} ({})", data, log_pal(data));
+                    self.bgp = data
+                }
+                0xff48 => {
+                    info!("Register OBP0: {:08b} ({})", data, log_pal(data));
 
-                self.obp0 = data
-            }
-            0xff49 => {
-                info!("Register OBP1: {:08b} ({})", data, log_pal(data));
+                    self.obp0 = data
+                }
+                0xff49 => {
+                    info!("Register OBP1: {:08b} ({})", data, log_pal(data));
 
-                self.obp1 = data
+                    self.obp1 = data
+                }
             }
-            _ => return Err(Error::InvalidAddr(address)),
         }
 
         Ok(())

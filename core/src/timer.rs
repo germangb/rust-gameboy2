@@ -1,6 +1,5 @@
 use crate::{
     device::{Device, Result},
-    error::Error,
     irq,
     utils::ClockDecimate,
     Update, CLOCK,
@@ -70,34 +69,34 @@ impl Update for Timer {
 }
 
 impl Device for Timer {
-    const DEBUG_NAME: &'static str = "Timer";
-
     fn read(&self, address: u16) -> Result<u8> {
-        match address {
-            0xff04 => Ok(self.div),
-            0xff05 => Ok(self.tima),
-            0xff06 => Ok(self.tma),
-            0xff07 => Ok(self.tac),
-            _ => Err(Error::InvalidAddr(address)),
+        device_match! {
+            address {
+                0xff04 => Ok(self.div),
+                0xff05 => Ok(self.tima),
+                0xff06 => Ok(self.tma),
+                0xff07 => Ok(self.tac),
+            }
         }
     }
 
     fn write(&mut self, address: u16, data: u8) -> Result<()> {
-        match address {
-            0xff04 => self.div = 0,
-            0xff05 => self.tima = data,
-            0xff06 => {
-                info!("TMA = {:#08b} {:#02x}", data, data);
+        device_match! {
+            address {
+                0xff04 => self.div = 0,
+                0xff05 => self.tima = data,
+                0xff06 => {
+                    info!("TMA = {:#08b} {:#02x}", data, data);
 
-                self.tma = data
-            }
-            0xff07 => {
-                info!("TAC = {:#08b} {:#02x}", data, data);
+                    self.tma = data
+                }
+                0xff07 => {
+                    info!("TAC = {:#08b} {:#02x}", data, data);
 
-                self.tac = data;
-                self.update_tima_clock();
+                    self.tac = data;
+                    self.update_tima_clock();
+                }
             }
-            _ => return Err(Error::InvalidAddr(address)),
         }
 
         Ok(())

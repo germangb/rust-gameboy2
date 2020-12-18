@@ -1,7 +1,7 @@
 use core::{
     cartridge::Cartridge,
     device::{Device, Result},
-    error::Error,
+    device_match,
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -173,65 +173,65 @@ impl<S: Sensor> PoketCamera<S> {
 }
 
 impl<S: Sensor> Device for PoketCamera<S> {
-    const DEBUG_NAME: &'static str = "Game Boy Camera";
-
     fn read(&self, address: u16) -> Result<u8> {
-        match address {
-            0x0000..=0x3fff => Ok(ROM[address as usize]),
-            0x4000..=0x7fff => Ok(ROM[self.rom_bank_address(address)]),
-            0xa000..=0xbfff => match self.mode {
-                // Reading from RAM or registers is always enabled. Writing to registers is always
-                // enabled. Disabled on reset.
-                Mode::Ram => Ok(self.ram[self.ram_bank_address(address)]),
-                Mode::Cam => match 0xa000 + (address % 0x80) {
-                    0xa000 => Ok(self.registers.a000 & 0x7),
-                    0xa001 => Ok(0),
-                    0xa002 => Ok(0),
-                    0xa003 => Ok(0),
-                    0xa004 => Ok(0),
-                    0xa005 => Ok(0),
-                    0xa006..=0xa035 => Ok(self.registers.a006[address as usize - 0xa006]),
-                    _ => panic!(),
+        device_match! {
+            address {
+                0x0000..=0x3fff => Ok(ROM[address as usize]),
+                0x4000..=0x7fff => Ok(ROM[self.rom_bank_address(address)]),
+                0xa000..=0xbfff => match self.mode {
+                    // Reading from RAM or registers is always enabled. Writing to registers is always
+                    // enabled. Disabled on reset.
+                    Mode::Ram => Ok(self.ram[self.ram_bank_address(address)]),
+                    Mode::Cam => match 0xa000 + (address % 0x80) {
+                        0xa000 => Ok(self.registers.a000 & 0x7),
+                        0xa001 => Ok(0),
+                        0xa002 => Ok(0),
+                        0xa003 => Ok(0),
+                        0xa004 => Ok(0),
+                        0xa005 => Ok(0),
+                        0xa006..=0xa035 => Ok(self.registers.a006[address as usize - 0xa006]),
+                        _ => panic!(),
+                    },
                 },
-            },
-            _ => Err(Error::InvalidAddr(address)),
+            }
         }
     }
 
     fn write(&mut self, address: u16, data: u8) -> Result<()> {
-        match address {
-            0x0000..=0x1fff => {
-                self.ram_enabled = data & 0xf == 0xa;
-                self.ram_enabled = true;
-            }
-            0x2000..=0x3fff => self.rom_bank = (data as usize) & 0x3f,
-            // Writing a value in range for 00h-0Fh maps the corresponding external RAM Bank to
-            // memory at A000-BFFF. Writing any value with bit 5 set to '1' will select CAM
-            // registers. Usually bank 10h is used to select the registers. All registers are
-            // mirrored every 80h bytes. RAM bank 0 selected on reset.
-            0x4000..=0x5fff => {
-                if data & 0x10 == 0 {
-                    self.mode = Mode::Ram;
-                    self.ram_bank = (data & 0xf) as usize;
-                } else {
-                    self.mode = Mode::Cam;
+        device_match! {
+            address {
+                0x0000..=0x1fff => {
+                    self.ram_enabled = data & 0xf == 0xa;
+                    self.ram_enabled = true;
                 }
-            }
-            0xa000..=0xbfff => match self.mode {
-                Mode::Ram if self.ram_enabled => self.ram[self.ram_bank_address(address)] = data,
-                Mode::Cam => match 0xa000 + (address % 0x80) {
-                    0xa000 => self.registers.a000 = data & 0x7,
-                    0xa001 => self.registers.a001 = data,
-                    0xa002 => self.registers.a002 = data,
-                    0xa003 => self.registers.a003 = data,
-                    0xa004 => self.registers.a004 = data,
-                    0xa005 => self.registers.a005 = data,
-                    0xa006..=0xa035 => self.registers.a006[address as usize - 0xa006] = data,
-                    _ => panic!(),
+                0x2000..=0x3fff => self.rom_bank = (data as usize) & 0x3f,
+                // Writing a value in range for 00h-0Fh maps the corresponding external RAM Bank to
+                // memory at A000-BFFF. Writing any value with bit 5 set to '1' will select CAM
+                // registers. Usually bank 10h is used to select the registers. All registers are
+                // mirrored every 80h bytes. RAM bank 0 selected on reset.
+                0x4000..=0x5fff => {
+                    if data & 0x10 == 0 {
+                        self.mode = Mode::Ram;
+                        self.ram_bank = (data & 0xf) as usize;
+                    } else {
+                        self.mode = Mode::Cam;
+                    }
+                }
+                0xa000..=0xbfff => match self.mode {
+                    Mode::Ram if self.ram_enabled => self.ram[self.ram_bank_address(address)] = data,
+                    Mode::Cam => match 0xa000 + (address % 0x80) {
+                        0xa000 => self.registers.a000 = data & 0x7,
+                        0xa001 => self.registers.a001 = data,
+                        0xa002 => self.registers.a002 = data,
+                        0xa003 => self.registers.a003 = data,
+                        0xa004 => self.registers.a004 = data,
+                        0xa005 => self.registers.a005 = data,
+                        0xa006..=0xa035 => self.registers.a006[address as usize - 0xa006] = data,
+                        _ => panic!(),
+                    },
+                    _ => {}
                 },
-                _ => {}
-            },
-            _ => return Err(Error::InvalidAddr(address)),
+            }
         }
 
         // capture image

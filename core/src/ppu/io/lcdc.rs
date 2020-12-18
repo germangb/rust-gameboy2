@@ -1,7 +1,4 @@
-use crate::{
-    device::{Device, Result},
-    error::Error,
-};
+use crate::device::{Device, Result};
 use bitflags::bitflags;
 use log::info;
 #[cfg(feature = "serde")]
@@ -85,24 +82,25 @@ impl LCDC {
 }
 
 impl Device for LCDC {
-    const DEBUG_NAME: &'static str = "LCD Control (LCDC)";
-
     fn read(&self, address: u16) -> Result<u8> {
-        if address != 0xff40 {
-            return Err(Error::InvalidAddr(address));
+        device_match! {
+            address {
+                0xff40 => Ok(self.flags.bits),
+            }
         }
-
-        Ok(self.flags.bits)
     }
 
     fn write(&mut self, address: u16, data: u8) -> Result<()> {
-        if address != 0xff40 {
-            return Err(Error::InvalidAddr(address));
+        device_match! {
+            address {
+                0xff40 => {
+                    info!("LCDC: {:08b}", data);
+
+                    self.flags = Flags::from_bits(data).unwrap();
+                }
+            }
         }
 
-        info!("LCDC: {:08b}", data);
-
-        self.flags = Flags::from_bits(data).unwrap();
         Ok(())
     }
 }

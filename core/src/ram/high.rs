@@ -1,7 +1,4 @@
-use crate::{
-    device::{Device, Result},
-    error::Error,
-};
+use crate::device::{Device, Result};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -23,19 +20,19 @@ impl Default for HighRAM {
 }
 
 impl Device for HighRAM {
-    const DEBUG_NAME: &'static str = "High Ram";
-
     fn read(&self, address: u16) -> Result<u8> {
-        match address {
-            0xff80..=0xfffe => Ok(self.data[address as usize - OFFSET]),
-            _ => Err(Error::InvalidAddr(address)),
+        device_match! {
+            address {
+                0xff80..=0xfffe => Ok(self.data[address as usize - OFFSET]),
+            }
         }
     }
 
     fn write(&mut self, address: u16, data: u8) -> Result<()> {
-        match address {
-            0xff80..=0xfffe => self.data[address as usize - OFFSET] = data,
-            _ => return Err(Error::InvalidAddr(address)),
+        device_match! {
+            address {
+                0xff80..=0xfffe => self.data[address as usize - OFFSET] = data,
+            }
         }
 
         Ok(())

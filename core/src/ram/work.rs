@@ -1,7 +1,4 @@
-use crate::{
-    device::{Device, Result},
-    error::Error,
-};
+use crate::device::{Device, Result};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -24,19 +21,19 @@ impl Default for WorkRAM {
 }
 
 impl Device for WorkRAM {
-    const DEBUG_NAME: &'static str = "Work RAM";
-
     fn read(&self, address: u16) -> Result<u8> {
-        match address {
-            0xc000..=0xdfff => Ok(self.data[address as usize - OFFSET]),
-            _ => Err(Error::InvalidAddr(address)),
+        device_match! {
+            address {
+                0xc000..=0xdfff => Ok(self.data[address as usize - OFFSET]),
+            }
         }
     }
 
     fn write(&mut self, address: u16, data: u8) -> Result<()> {
-        match address {
-            0xc000..=0xdfff => self.data[address as usize - OFFSET] = data,
-            _ => return Err(Error::InvalidAddr(address)),
+        device_match! {
+            address {
+                0xc000..=0xdfff => self.data[address as usize - OFFSET] = data,
+            }
         }
 
         Ok(())

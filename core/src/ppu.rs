@@ -1,6 +1,5 @@
 use crate::{
     device::{Device, Result},
-    error::Error,
     irq,
     ppu::{
         io::{lcdc::LCDC, stat::STAT, Palette, Scroll, Window},
@@ -267,43 +266,43 @@ impl Update for PPU {
 }
 
 impl Device for PPU {
-    const DEBUG_NAME: &'static str = "Pixel Processing Unit";
-
     fn read(&self, address: u16) -> Result<u8> {
-        match address {
-            0x8000..=0x9fff => self.video_ram.read(address),
-            0xfe00..=0xfe9f => self.oam.read(address),
-            0xff40 => self.lcdc.read(address),
-            0xff41 => self.stat.read(address),
-            0xff42..=0xff43 => self.scroll.read(address),
-            0xff44..=0xff45 => self.stat.read(address),
-            0xff47..=0xff49 => self.palette.read(address),
-            0xff4a..=0xff4b => self.window.read(address),
-            _ => Err(Error::InvalidAddr(address)),
+        device_match! {
+            address {
+                0x8000..=0x9fff => self.video_ram.read(address),
+                0xfe00..=0xfe9f => self.oam.read(address),
+                0xff40 => self.lcdc.read(address),
+                0xff41 => self.stat.read(address),
+                0xff42..=0xff43 => self.scroll.read(address),
+                0xff44..=0xff45 => self.stat.read(address),
+                0xff47..=0xff49 => self.palette.read(address),
+                0xff4a..=0xff4b => self.window.read(address),
+            }
         }
     }
 
     fn write(&mut self, address: u16, data: u8) -> Result<()> {
-        match address {
-            0x8000..=0x9fff => self.video_ram.write(address, data),
-            0xfe00..=0xfe9f => self.oam.write(address, data),
-            0xff40 => {
-                self.lcdc.write(address, data)?;
+        device_match! {
+            address {
+                0x8000..=0x9fff => self.video_ram.write(address, data),
+                0xfe00..=0xfe9f => self.oam.write(address, data),
+                0xff40 => {
+                    self.lcdc.write(address, data)?;
 
-                if !self.lcdc.lcd_on() {
-                    info!("Turn off LCD display");
+                    if !self.lcdc.lcd_on() {
+                        info!("Turn off LCD display");
 
-                    self.clear_display()
+                        self.clear_display()
+                    }
+
+                    Ok(())
                 }
-
-                Ok(())
+                0xff41 => self.stat.write(address, data),
+                0xff42..=0xff43 => self.scroll.write(address, data),
+                0xff44..=0xff45 => self.stat.write(address, data),
+                0xff47..=0xff49 => self.palette.write(address, data),
+                0xff4a..=0xff4b => self.window.write(address, data),
             }
-            0xff41 => self.stat.write(address, data),
-            0xff42..=0xff43 => self.scroll.write(address, data),
-            0xff44..=0xff45 => self.stat.write(address, data),
-            0xff47..=0xff49 => self.palette.write(address, data),
-            0xff4a..=0xff4b => self.window.write(address, data),
-            _ => return Err(Error::InvalidAddr(address)),
         }
     }
 }

@@ -17,6 +17,16 @@
     nonstandard_style
 )]
 
+#[macro_export]
+macro_rules! device_match {
+    ($address:ident { $($tt:tt)* }) => {
+        match $address {
+            $($tt)*
+            _ => return Err($crate::error::Error::InvalidAddr($address))
+        }
+    }
+}
+
 use crate::{
     apu::APU,
     boot::Boot,
@@ -132,55 +142,53 @@ impl<C: Cartridge> Emulator<C> {
         Ok(())
     }
 
-    #[rustfmt::skip]
     fn read_io(&self, address: u16) -> Result<u8> {
         match address {
-            0xff00          => self.joypad.read(address),
+            0xff00 => self.joypad.read(address),
             0xff01..=0xff02 => {
                 warn!("Port/Mode not implemented {:04x}", address);
                 Ok(0)
-            },
+            }
             0xff04..=0xff07 => self.timer.read(address),
-            0xff0f          => self.irq.read(address),
+            0xff0f => self.irq.read(address),
             0xff10..=0xff26 => self.apu.read(address),
             0xff30..=0xff3f => self.apu.read(address),
             0xff40..=0xff45 => self.ppu.read(address),
-            0xff46          => self.oam_dma.read(address),
+            0xff46 => self.oam_dma.read(address),
             0xff47..=0xff4b => self.ppu.read(address),
-            0xff4f          => {
+            0xff4f => {
                 warn!("Game Boy Color (VRAM Bank Select)");
                 Ok(0)
-            },
-            0xff50          => self.boot.read(address),
+            }
+            0xff50 => self.boot.read(address),
             0xff51..=0xff55 => {
                 warn!("Game Boy color");
                 Ok(0)
-            },
+            }
             0xff68..=0xff6a => {
                 warn!("Game Boy color (DMA)");
                 Ok(0)
-            },
-            _               => {
+            }
+            _ => {
                 warn!("Unknown IO address: {:04x}", address);
                 Ok(0xff)
-            },
+            }
         }
     }
 
-    #[rustfmt::skip]
     fn write_io(&mut self, address: u16, data: u8) -> Result<()> {
         match address {
-            0xff00          => self.joypad.write(address, data),
+            0xff00 => self.joypad.write(address, data),
             0xff01..=0xff02 => {
                 warn!("Port/Mode not implemented: {:04x}, {:02x}", address, data);
                 Ok(())
-            },
+            }
             0xff04..=0xff07 => self.timer.write(address, data),
-            0xff0f          => self.irq.write(address, data),
+            0xff0f => self.irq.write(address, data),
             0xff10..=0xff26 => self.apu.write(address, data),
             0xff30..=0xff3f => self.apu.write(address, data),
             0xff40..=0xff45 => self.ppu.write(address, data),
-            0xff46          => {
+            0xff46 => {
                 self.oam_dma.write(address, data)?;
 
                 // do the OAM transfer all at once, then the emulator will block certain
@@ -192,23 +200,23 @@ impl<C: Cartridge> Emulator<C> {
                 Ok(())
             }
             0xff47..=0xff4b => self.ppu.write(address, data),
-            0xff4f          => {
+            0xff4f => {
                 warn!("Game Boy Color (VRAM Bank Select): {:02x}", data);
                 Ok(())
-            },
-            0xff50          => self.boot.write(address, data),
+            }
+            0xff50 => self.boot.write(address, data),
             0xff51..=0xff55 => {
                 warn!("Game Boy color");
                 Ok(())
-            },
+            }
             0xff68..=0xff6a => {
                 warn!("Game Boy color (DMA)");
                 Ok(())
-            },
-            _               => {
+            }
+            _ => {
                 warn!("Unknown IO address: {:04x}, data: {:02x}", address, data);
                 Ok(())
-            },
+            }
         }
     }
 
@@ -227,66 +235,68 @@ impl<C: Cartridge> Emulator<C> {
 }
 
 impl<C: Cartridge> Device for Emulator<C> {
-    const DEBUG_NAME: &'static str = "Emulator";
-
     fn read(&self, address: u16) -> Result<u8> {
         let boot = self.boot.is_enabled();
 
-        match address {
-            0x0000..=0x00ff if boot => self.boot.read(address),
-            0x0000..=0x7fff => self.cartridge.read(address),
-            0x8000..=0x9fff => self.ppu.read(address),
-            0xa000..=0xbfff => self.cartridge.read(address),
-            0xc000..=0xdfff => self.work_ram.read(address),
-            // Nintendo says use of this area is prohibited.
-            0xe000..=0xfdff => {
-                warn!("Nintendo says use of this area is prohibited (Echo RAM).");
+        device_match! {
+            address {
+                0x0000..=0x00ff if boot => self.boot.read(address),
+                0x0000..=0x7fff => self.cartridge.read(address),
+                0x8000..=0x9fff => self.ppu.read(address),
+                0xa000..=0xbfff => self.cartridge.read(address),
+                0xc000..=0xdfff => self.work_ram.read(address),
+                // Nintendo says use of this area is prohibited.
+                0xe000..=0xfdff => {
+                    warn!("Nintendo says use of this area is prohibited (Echo RAM).");
 
-                self.read(address - 0xe000 + 0xc000)
+                    self.read(address - 0xe000 + 0xc000)
+                }
+                0xfe00..=0xfe9f => self.ppu.read(address),
+
+                // TODO emulate behavior depending on device & hardware revision
+                //  https://gbdev.io/pandocs/#fea0-feff-range
+                0xfea0..=0xfeff => {
+                    warn!("Nintendo says use of this area is prohibited (Unused).");
+
+                    Ok(0xff)
+                }
+
+                0xff00..=0xff7f => self.read_io(address),
+                0xff80..=0xfffe => self.high_ram.read(address),
+                0xffff => self.irq.read(address),
             }
-            0xfe00..=0xfe9f => self.ppu.read(address),
-
-            // TODO emulate behavior depending on device & hardware revision
-            //  https://gbdev.io/pandocs/#fea0-feff-range
-            0xfea0..=0xfeff => {
-                warn!("Nintendo says use of this area is prohibited (Unused).");
-
-                Ok(0xff)
-            }
-
-            0xff00..=0xff7f => self.read_io(address),
-            0xff80..=0xfffe => self.high_ram.read(address),
-            0xffff => self.irq.read(address),
         }
     }
 
     fn write(&mut self, address: u16, data: u8) -> Result<()> {
         let boot = self.boot.is_enabled();
 
-        match address {
-            0x0000..=0x00ff if boot => self.boot.write(address, data),
-            0x0000..=0x7fff => self.cartridge.write(address, data),
-            0x8000..=0x9fff => self.ppu.write(address, data),
-            0xa000..=0xbfff => self.cartridge.write(address, data),
-            0xc000..=0xdfff => self.work_ram.write(address, data),
-            // Nintendo says use of this area is prohibited.
-            0xe000..=0xfdff => {
-                warn!("Nintendo says use of this area is prohibited (Echo RAM).");
-                Ok(())
+        device_match! {
+            address {
+                0x0000..=0x00ff if boot => self.boot.write(address, data),
+                0x0000..=0x7fff => self.cartridge.write(address, data),
+                0x8000..=0x9fff => self.ppu.write(address, data),
+                0xa000..=0xbfff => self.cartridge.write(address, data),
+                0xc000..=0xdfff => self.work_ram.write(address, data),
+                // Nintendo says use of this area is prohibited.
+                0xe000..=0xfdff => {
+                    warn!("Nintendo says use of this area is prohibited (Echo RAM).");
+                    Ok(())
+                }
+                0xfe00..=0xfe9f => self.ppu.write(address, data),
+
+                // TODO emulate behavior depending on device & hardware revision
+                //  https://gbdev.io/pandocs/#fea0-feff-range
+                0xfea0..=0xfeff => {
+                    warn!("Nintendo says use of this area is prohibited (Unused).");
+
+                    Ok(())
+                }
+
+                0xff00..=0xff7f => self.write_io(address, data),
+                0xff80..=0xfffe => self.high_ram.write(address, data),
+                0xffff => self.irq.write(address, data),
             }
-            0xfe00..=0xfe9f => self.ppu.write(address, data),
-
-            // TODO emulate behavior depending on device & hardware revision
-            //  https://gbdev.io/pandocs/#fea0-feff-range
-            0xfea0..=0xfeff => {
-                warn!("Nintendo says use of this area is prohibited (Unused).");
-
-                Ok(())
-            }
-
-            0xff00..=0xff7f => self.write_io(address, data),
-            0xff80..=0xfffe => self.high_ram.write(address, data),
-            0xffff => self.irq.write(address, data),
         }
     }
 }

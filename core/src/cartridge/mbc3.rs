@@ -1,7 +1,6 @@
 use crate::{
     cartridge::{ram_banks, Cartridge},
     device::{Device, Result},
-    error::Error,
 };
 use log::info;
 #[cfg(feature = "serde")]
@@ -61,43 +60,43 @@ impl MBC3 {
 impl Cartridge for MBC3 {}
 
 impl Device for MBC3 {
-    const DEBUG_NAME: &'static str = "ROM (MBC3)";
-
     fn read(&self, address: u16) -> Result<u8> {
-        match address {
-            0x0000..=0x3fff => Ok(self.rom[address as usize]),
-            0x4000..=0x7fff => Ok(self.rom[self.rom_bank_address(address)]),
-            0xa000..=0xbfff if self.ram_timer_enabled => match self.mode {
-                Mode::Ram => Ok(self.ram[self.ram_bank_address(address)]),
-                Mode::Rtc => Ok(self.rtc[self.rtc_select]),
-            },
-            0xa000..=0xbfff => Ok(0),
-            _ => Err(Error::InvalidAddr(address)),
+        device_match! {
+            address {
+                0x0000..=0x3fff => Ok(self.rom[address as usize]),
+                0x4000..=0x7fff => Ok(self.rom[self.rom_bank_address(address)]),
+                0xa000..=0xbfff if self.ram_timer_enabled => match self.mode {
+                    Mode::Ram => Ok(self.ram[self.ram_bank_address(address)]),
+                    Mode::Rtc => Ok(self.rtc[self.rtc_select]),
+                },
+                0xa000..=0xbfff => Ok(0),
+            }
         }
     }
 
     fn write(&mut self, address: u16, data: u8) -> Result<()> {
-        match address {
-            0x0000..=0x1fff => self.ram_timer_enabled = (data & 0xf) == 0xa,
-            0x2000..=0x3fff => self.rom_bank = data as usize,
-            0x4000..=0x5fff => match data {
-                0x00..=0x03 => {
-                    self.mode = Mode::Ram;
-                    self.ram_bank = data as usize
-                }
-                0x08..=0x0c => {
-                    self.mode = Mode::Rtc;
-                    self.rtc_select = (data as usize) - 0x08
-                }
-                _ => panic!(),
-            },
-            0x6000..=0x7fff => {}
-            0xa000..=0xbfff if self.ram_timer_enabled => match self.mode {
-                Mode::Ram => self.ram[self.ram_bank_address(address)] = data,
-                Mode::Rtc => self.rtc[self.rtc_select] = data,
-            },
-            0xa000..=0xbfff => {}
-            _ => return Err(Error::InvalidAddr(address)),
+        device_match! {
+            address {
+                0x0000..=0x1fff => self.ram_timer_enabled = (data & 0xf) == 0xa,
+                0x2000..=0x3fff => self.rom_bank = data as usize,
+                0x4000..=0x5fff => match data {
+                    0x00..=0x03 => {
+                        self.mode = Mode::Ram;
+                        self.ram_bank = data as usize
+                    }
+                    0x08..=0x0c => {
+                        self.mode = Mode::Rtc;
+                        self.rtc_select = (data as usize) - 0x08
+                    }
+                    _ => panic!(),
+                },
+                0x6000..=0x7fff => {}
+                0xa000..=0xbfff if self.ram_timer_enabled => match self.mode {
+                    Mode::Ram => self.ram[self.ram_bank_address(address)] = data,
+                    Mode::Rtc => self.rtc[self.rtc_select] = data,
+                },
+                0xa000..=0xbfff => {}
+            }
         }
 
         Ok(())

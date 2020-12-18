@@ -1,7 +1,4 @@
-use crate::{
-    device::{Device, Result},
-    error::Error,
-};
+use crate::device::{Device, Result};
 use log::{info, warn};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -62,39 +59,41 @@ impl Joypad {
 }
 
 impl Device for Joypad {
-    const DEBUG_NAME: &'static str = "Joypad";
-
     fn read(&self, address: u16) -> Result<u8> {
-        if address != 0xff00 {
-            return Err(Error::InvalidAddr(address));
+        device_match! {
+            address {
+                0xff00 => {
+                    let data = match self.select {
+                        Select::Button => (self.matrix & 0xf) | 0b0010_0000,
+                        Select::Direction => (self.matrix >> 4) | 0b0001_0000,
+                        Select::Undefined => unreachable!(),
+                    };
+
+                    // we're swapping the meaning of 0 and 1 internally
+                    // so we need to invert the data bits
+                    Ok(!data & 0b0011_1111)
+                }
+            }
         }
-
-        let data = match self.select {
-            Select::Button => (self.matrix & 0xf) | 0b0010_0000,
-            Select::Direction => (self.matrix >> 4) | 0b0001_0000,
-            Select::Undefined => unreachable!(),
-        };
-
-        // we're swapping the meaning of 0 and 1 internally
-        // so we need to invert the data bits
-        Ok(!data & 0b0011_1111)
     }
 
     fn write(&mut self, address: u16, mut data: u8) -> Result<()> {
-        if address != 0xff00 {
-            return Err(Error::InvalidAddr(address));
-        }
+        device_match! {
+            address {
+                0xff00 => {
+                    // we're swapping the meaning of 0 and 1 internally
+                    // so we need to invert the data bits
+                    data = !data;
+                    data &= 0b0011_0000;
 
-        // we're swapping the meaning of 0 and 1 internally
-        // so we need to invert the data bits
-        data = !data;
-        data &= 0b0011_0000;
+                    let data: Select = unsafe { mem::transmute(data) };
 
-        let data: Select = unsafe { mem::transmute(data) };
-
-        match data {
-            Select::Undefined => warn!("Undefined select mode"),
-            s => self.select = s,
+                    match data {
+                        Select::Undefined => warn!("Undefined select mode"),
+                        s => self.select = s,
+                    }
+                }
+            }
         }
 
         Ok(())

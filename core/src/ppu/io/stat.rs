@@ -1,6 +1,5 @@
 use crate::{
     device::{Device, Result},
-    error::Error,
     irq,
 };
 use log::{info, warn};
@@ -171,33 +170,33 @@ impl STAT {
 }
 
 impl Device for STAT {
-    const DEBUG_NAME: &'static str = "LCD Status (STAT)";
-
     fn read(&self, address: u16) -> Result<u8> {
-        match address {
-            0xff41 => Ok(self.stat),
-            0xff44 => Ok(self.ly),
-            0xff45 => Ok(self.lyc),
-            _ => Err(Error::InvalidAddr(address)),
+        device_match! {
+            address {
+                0xff41 => Ok(self.stat),
+                0xff44 => Ok(self.ly),
+                0xff45 => Ok(self.lyc),
+            }
         }
     }
 
     fn write(&mut self, address: u16, data: u8) -> Result<()> {
-        match address {
-            0xff41 => {
-                self.stat &= 0b0000_0111;
-                self.stat |= data & 0b0111_1000;
-            }
-            0xff44 => {
-                warn!("WRITE to LY is undefined.");
-            }
-            0xff45 => {
-                info!("LYC: {:02x}", data);
+        device_match! {
+            address {
+                0xff41 => {
+                    self.stat &= 0b0000_0111;
+                    self.stat |= data & 0b0111_1000;
+                }
+                0xff44 => {
+                    warn!("WRITE to LY is undefined.");
+                }
+                0xff45 => {
+                    info!("LYC: {:02x}", data);
 
-                self.lyc = data;
-                self.update_lyc_flag();
+                    self.lyc = data;
+                    self.update_lyc_flag();
+                }
             }
-            _ => return Err(Error::InvalidAddr(address)),
         }
 
         Ok(())

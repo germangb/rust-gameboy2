@@ -1,9 +1,4 @@
-use crate::{
-    device::{Device, Result},
-    error::Error,
-    Update,
-};
-use log::warn;
+use crate::device::{Device, Result};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -34,22 +29,24 @@ pub struct NoCartridge;
 impl Cartridge for NoCartridge {}
 
 impl Device for NoCartridge {
-    const DEBUG_NAME: &'static str = "No-Cartridge";
-
     fn read(&self, address: u16) -> Result<u8> {
-        if matches!(address, 0x0000..=0x7fff | 0xa000..=0xbfff) {
-            Ok(0xff)
-        } else {
-            Err(Error::InvalidAddr(address))
+        device_match! {
+            address {
+                0x0000..=0x7fff => Ok(0xff),
+                0xa000..=0xbfff => Ok(0xff),
+            }
         }
     }
 
     fn write(&mut self, address: u16, data: u8) -> Result<()> {
-        if !matches!(address, 0x0000..=0x7fff | 0xa000..=0xbfff) {
-            Err(Error::InvalidAddr(address))
-        } else {
-            Ok(())
+        device_match! {
+            address {
+                0x0000..=0x7fff => {},
+                0xa000..=0xbfff => {},
+            }
         }
+
+        Ok(())
     }
 }
 
@@ -72,26 +69,21 @@ impl ROM {
 impl Cartridge for ROM {}
 
 impl Device for ROM {
-    const DEBUG_NAME: &'static str = "ROM";
-
     fn read(&self, address: u16) -> Result<u8> {
-        match address {
-            0x0000..=0x7fff => Ok(self.rom[address as usize]),
-            0xa000..=0xbfff => Ok(self.ram[address as usize - 0xa000]),
-            _ => Err(Error::InvalidAddr(address)),
+        device_match! {
+            address {
+                0x0000..=0x7fff => Ok(self.rom[address as usize]),
+                0xa000..=0xbfff => Ok(self.ram[(address as usize) - 0xa000]),
+            }
         }
     }
 
     fn write(&mut self, address: u16, data: u8) -> Result<()> {
-        match address {
-            0x0000..=0x7fff => {
-                warn!(
-                    "Attempt to write to ROM, address: {:#04x}, data = {:#02x}",
-                    address, data
-                );
+        device_match! {
+            address {
+                0x0000..=0x7fff => panic!("[WRITE] ROM address."),
+                0xa000..=0xbfff => self.ram[address as usize - 0xa000] = data,
             }
-            0xa000..=0xbfff => self.ram[address as usize - 0xa000] = data,
-            _ => return Err(Error::InvalidAddr(address)),
         }
 
         Ok(())

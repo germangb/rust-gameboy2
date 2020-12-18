@@ -138,8 +138,6 @@ impl<C: Cartridge> GameBoy<C> {
 }
 
 impl<C: Cartridge> Device for GameBoy<C> {
-    const DEBUG_NAME: &'static str = "GameBoy (DMG01)";
-
     fn read(&self, address: u16) -> Result<u8> {
         self.emulator.read(address)
     }

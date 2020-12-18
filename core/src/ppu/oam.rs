@@ -46,8 +46,6 @@ impl OAM {
 }
 
 impl Device for OAM {
-    const DEBUG_NAME: &'static str = "OAM Table";
-
     fn read(&self, address: u16) -> Result<u8, Error> {
         if let 0xfe00..=0xfe9f = address {
             let offset = address - 0xfe00;

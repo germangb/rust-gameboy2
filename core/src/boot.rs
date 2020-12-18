@@ -1,7 +1,4 @@
-use crate::{
-    device::{Device, Result},
-    error::Error,
-};
+use crate::device::{Device, Result};
 use log::{error, info};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -28,39 +25,39 @@ impl Boot {
 }
 
 impl Device for Boot {
-    const DEBUG_NAME: &'static str = "BOOT Section";
-
     fn read(&self, address: u16) -> Result<u8> {
-        match address {
-            0x0000..=0x00ff if self.enabled => {
-                if cfg!(feature = "boot") {
-                    Ok(ROM[address as usize])
-                } else {
-                    panic!("Emulator must be build with the \"boot\" feature flag in order to run the boot sequence");
+        device_match! {
+            address {
+                0x0000..=0x00ff if self.enabled => {
+                    if cfg!(feature = "boot") {
+                        Ok(ROM[address as usize])
+                    } else {
+                        panic!("Emulator must be build with the \"boot\" feature flag in order to run the boot sequence");
+                    }
                 }
+                0x0000..=0x00ff => panic!("BOOT section disabled"),
+                0xff50 => Ok(if self.enabled { 0x00 } else { 0xff }),
             }
-            0x0000..=0x00ff => panic!("BOOT section disabled"),
-            0xff50 => Ok(if self.enabled { 0x00 } else { 0xff }),
-            _ => Err(Error::InvalidAddr(address)),
         }
     }
 
     fn write(&mut self, address: u16, data: u8) -> Result<()> {
-        match address {
-            0x0000..=0x00ff => {
-                panic!("BOOT section disabled");
-            }
-            0xff50 => {
-                if self.enabled && data != 0 {
-                    info!("BOOT section disabled: {:#02x}", data);
-
-                    self.enabled = false;
+        device_match! {
+            address {
+                0x0000..=0x00ff => {
+                    panic!("BOOT section disabled");
                 }
+                0xff50 => {
+                    if self.enabled && data != 0 {
+                        info!("BOOT section disabled: {:#02x}", data);
 
-                Ok(())
+                        self.enabled = false;
+                    }
+                }
             }
-            _ => Err(Error::InvalidAddr(address)),
         }
+
+        Ok(())
     }
 }
 

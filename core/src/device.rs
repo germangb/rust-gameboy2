@@ -6,8 +6,6 @@ type Endianness = LittleEndian;
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub trait Device {
-    const DEBUG_NAME: &'static str;
-
     fn read(&self, address: u16) -> Result<u8>;
 
     fn write(&mut self, address: u16, data: u8) -> Result<()>;
@@ -34,8 +32,6 @@ mod test {
     type TestDevice = Box<[u8; 0x10000]>;
 
     impl Device for TestDevice {
-        const DEBUG_NAME: &'static str = "Test";
-
         fn read(&self, address: u16) -> Result<u8> {
             Ok(self[address as usize])
         }

@@ -7,8 +7,6 @@ use serde::{Deserialize, Serialize};
 pub struct APU {}
 
 impl Device for APU {
-    const DEBUG_NAME: &'static str = "Audio Processing Unit";
-
     fn read(&self, address: u16) -> Result<u8, Error> {
         Ok(0xff)
     }

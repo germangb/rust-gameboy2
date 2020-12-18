@@ -1,6 +1,5 @@
 use crate::{
     device::{Device, Result},
-    error::Error,
     irq, Update,
 };
 use log::info;
@@ -38,26 +37,27 @@ impl Update for DMA {
 }
 
 impl Device for DMA {
-    const DEBUG_NAME: &'static str = "OAM DMA";
-
     fn read(&self, address: u16) -> Result<u8> {
-        if address != 0xff46 {
-            Err(Error::InvalidAddr(address))
-        } else {
-            Ok(self.dma)
+        device_match! {
+            address {
+                0xff46 => Ok(self.dma),
+            }
         }
     }
 
     fn write(&mut self, address: u16, data: u8) -> Result<()> {
-        if address != 0xff46 {
-            Err(Error::InvalidAddr(address))
-        } else {
-            info!("OAM DMA Register: {:02x}", self.dma);
+        device_match! {
+            address {
+                0xff46 => {
+                    info!("OAM DMA Register: {:02x}", self.dma);
 
-            self.dma = data;
-            self.clocks = DURATION;
-            Ok(())
+                    self.dma = data;
+                    self.clocks = DURATION;
+                }
+            }
         }
+
+        Ok(())
     }
 }
 

@@ -1,4 +1,7 @@
-use crate::{device::Device, error::Error};
+use crate::{
+    device::{Device, Result},
+    error::Error,
+};
 use log::{error, info};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -27,7 +30,7 @@ impl Boot {
 impl Device for Boot {
     const DEBUG_NAME: &'static str = "BOOT Section";
 
-    fn read(&self, address: u16) -> Result<u8, Error> {
+    fn read(&self, address: u16) -> Result<u8> {
         match address {
             0x0000..=0x00ff if self.enabled => {
                 if cfg!(feature = "boot") {
@@ -42,7 +45,7 @@ impl Device for Boot {
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
+    fn write(&mut self, address: u16, data: u8) -> Result<()> {
         match address {
             0x0000..=0x00ff => {
                 panic!("BOOT section disabled");

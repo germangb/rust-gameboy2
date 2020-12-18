@@ -1,4 +1,10 @@
-use crate::{device::Device, error::Error, irq, utils::ClockDecimate, Update, CLOCK};
+use crate::{
+    device::{Device, Result},
+    error::Error,
+    irq,
+    utils::ClockDecimate,
+    Update, CLOCK,
+};
 use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -66,7 +72,7 @@ impl Update for Timer {
 impl Device for Timer {
     const DEBUG_NAME: &'static str = "Timer";
 
-    fn read(&self, address: u16) -> Result<u8, Error> {
+    fn read(&self, address: u16) -> Result<u8> {
         match address {
             0xff04 => Ok(self.div),
             0xff05 => Ok(self.tima),
@@ -76,7 +82,7 @@ impl Device for Timer {
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
+    fn write(&mut self, address: u16, data: u8) -> Result<()> {
         match address {
             0xff04 => self.div = 0,
             0xff05 => self.tima = data,

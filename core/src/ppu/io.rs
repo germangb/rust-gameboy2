@@ -1,4 +1,7 @@
-use crate::{device::Device, error::Error};
+use crate::{
+    device::{Device, Result},
+    error::Error,
+};
 use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -16,7 +19,7 @@ pub struct Scroll {
 impl Device for Scroll {
     const DEBUG_NAME: &'static str = "Scroll";
 
-    fn read(&self, address: u16) -> Result<u8, Error> {
+    fn read(&self, address: u16) -> Result<u8> {
         match address {
             0xff42 => Ok(self.scy),
             0xff43 => Ok(self.scx),
@@ -24,7 +27,7 @@ impl Device for Scroll {
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
+    fn write(&mut self, address: u16, data: u8) -> Result<()> {
         match address {
             0xff42 => {
                 info!("Register SCY: {:02x}", data);
@@ -53,7 +56,7 @@ pub struct Window {
 impl Device for Window {
     const DEBUG_NAME: &'static str = "Window";
 
-    fn read(&self, address: u16) -> Result<u8, Error> {
+    fn read(&self, address: u16) -> Result<u8> {
         match address {
             0xff4a => Ok(self.wy),
             0xff4b => Ok(self.wx),
@@ -61,7 +64,7 @@ impl Device for Window {
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
+    fn write(&mut self, address: u16, data: u8) -> Result<()> {
         match address {
             0xff4a => {
                 info!("Register WY: {:02x}", data);
@@ -103,7 +106,7 @@ fn log_pal(pal: u8) -> String {
 impl Device for Palette {
     const DEBUG_NAME: &'static str = "Color Palette";
 
-    fn read(&self, address: u16) -> Result<u8, Error> {
+    fn read(&self, address: u16) -> Result<u8> {
         match address {
             0xff47 => Ok(self.bgp),
             0xff48 => Ok(self.obp0),
@@ -112,7 +115,7 @@ impl Device for Palette {
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
+    fn write(&mut self, address: u16, data: u8) -> Result<()> {
         match address {
             0xff47 => {
                 info!("Register BGP: {:08b} ({})", data, log_pal(data));

@@ -1,4 +1,7 @@
-use crate::{device::Device, error::Error};
+use crate::{
+    device::{Device, Result},
+    error::Error,
+};
 use bitflags::bitflags;
 use log::info;
 #[cfg(feature = "serde")]
@@ -26,7 +29,7 @@ pub struct IRQ {
 impl Device for IRQ {
     const DEBUG_NAME: &'static str = "IRQ";
 
-    fn read(&self, address: u16) -> Result<u8, Error> {
+    fn read(&self, address: u16) -> Result<u8> {
         match address {
             0xff0f => Ok(self.fi.bits),
             0xffff => Ok(self.ie.bits),
@@ -34,7 +37,7 @@ impl Device for IRQ {
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
+    fn write(&mut self, address: u16, data: u8) -> Result<()> {
         match address {
             0xff0f => self.fi = Flags::from_bits(data).unwrap(),
             0xffff => {

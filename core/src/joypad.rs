@@ -1,4 +1,7 @@
-use crate::{device::Device, error::Error};
+use crate::{
+    device::{Device, Result},
+    error::Error,
+};
 use log::{info, warn};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -61,7 +64,7 @@ impl Joypad {
 impl Device for Joypad {
     const DEBUG_NAME: &'static str = "Joypad";
 
-    fn read(&self, address: u16) -> Result<u8, Error> {
+    fn read(&self, address: u16) -> Result<u8> {
         if address != 0xff00 {
             return Err(Error::InvalidAddr(address));
         }
@@ -77,7 +80,7 @@ impl Device for Joypad {
         Ok(!data & 0b0011_1111)
     }
 
-    fn write(&mut self, address: u16, mut data: u8) -> Result<(), Error> {
+    fn write(&mut self, address: u16, mut data: u8) -> Result<()> {
         if address != 0xff00 {
             return Err(Error::InvalidAddr(address));
         }

@@ -1,4 +1,8 @@
-use crate::{device::Device, error::Error, irq};
+use crate::{
+    device::{Device, Result},
+    error::Error,
+    irq,
+};
 use log::{info, warn};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -169,7 +173,7 @@ impl STAT {
 impl Device for STAT {
     const DEBUG_NAME: &'static str = "LCD Status (STAT)";
 
-    fn read(&self, address: u16) -> Result<u8, Error> {
+    fn read(&self, address: u16) -> Result<u8> {
         match address {
             0xff41 => Ok(self.stat),
             0xff44 => Ok(self.ly),
@@ -178,7 +182,7 @@ impl Device for STAT {
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
+    fn write(&mut self, address: u16, data: u8) -> Result<()> {
         match address {
             0xff41 => {
                 self.stat &= 0b0000_0111;

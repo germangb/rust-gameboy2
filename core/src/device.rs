@@ -3,19 +3,21 @@ use byteorder::{ByteOrder, LittleEndian};
 
 type Endianness = LittleEndian;
 
+pub type Result<T> = std::result::Result<T, Error>;
+
 pub trait Device {
     const DEBUG_NAME: &'static str;
 
-    fn read(&self, address: u16) -> Result<u8, Error>;
+    fn read(&self, address: u16) -> Result<u8>;
 
-    fn write(&mut self, address: u16, data: u8) -> Result<(), Error>;
+    fn write(&mut self, address: u16, data: u8) -> Result<()>;
 
-    fn read_word(&self, address: u16) -> Result<u16, Error> {
+    fn read_word(&self, address: u16) -> Result<u16> {
         let bytes = [self.read(address)?, self.read(address + 1)?];
         Ok(Endianness::read_u16(&bytes[..]))
     }
 
-    fn write_word(&mut self, address: u16, data: u16) -> Result<(), Error> {
+    fn write_word(&mut self, address: u16, data: u16) -> Result<()> {
         let mut bytes = [0; 2];
         Endianness::write_u16(&mut &mut bytes[..], data);
         self.write(address, bytes[0])?;
@@ -26,7 +28,7 @@ pub trait Device {
 
 #[cfg(test)]
 mod test {
-    use super::Device;
+    use super::{Device, Result};
     use crate::error::Error;
 
     type TestDevice = Box<[u8; 0x10000]>;
@@ -34,11 +36,11 @@ mod test {
     impl Device for TestDevice {
         const DEBUG_NAME: &'static str = "Test";
 
-        fn read(&self, address: u16) -> Result<u8, Error> {
+        fn read(&self, address: u16) -> Result<u8> {
             Ok(self[address as usize])
         }
 
-        fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
+        fn write(&mut self, address: u16, data: u8) -> Result<()> {
             self[address as usize] = data;
 
             Ok(())

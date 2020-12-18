@@ -1,4 +1,8 @@
-use core::{cartridge::Cartridge, device::Device, error::Error};
+use core::{
+    cartridge::Cartridge,
+    device::{Device, Result},
+    error::Error,
+};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -171,7 +175,7 @@ impl<S: Sensor> PoketCamera<S> {
 impl<S: Sensor> Device for PoketCamera<S> {
     const DEBUG_NAME: &'static str = "Game Boy Camera";
 
-    fn read(&self, address: u16) -> Result<u8, Error> {
+    fn read(&self, address: u16) -> Result<u8> {
         match address {
             0x0000..=0x3fff => Ok(ROM[address as usize]),
             0x4000..=0x7fff => Ok(ROM[self.rom_bank_address(address)]),
@@ -194,7 +198,7 @@ impl<S: Sensor> Device for PoketCamera<S> {
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
+    fn write(&mut self, address: u16, data: u8) -> Result<()> {
         match address {
             0x0000..=0x1fff => {
                 self.ram_enabled = data & 0xf == 0xa;

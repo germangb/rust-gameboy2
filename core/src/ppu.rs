@@ -1,5 +1,5 @@
 use crate::{
-    device::Device,
+    device::{Device, Result},
     error::Error,
     irq,
     ppu::{
@@ -109,7 +109,7 @@ impl PPU {
     }
 
     // render the given line to the display buffer
-    fn draw_scanline(&mut self, ly: u8) -> Result<(), Error> {
+    fn draw_scanline(&mut self, ly: u8) -> Result<()> {
         let display_offset = lcd::WIDTH * (ly as usize);
         let Scroll { scy, scx } = self.scroll;
         let Window { wy, wx } = self.window;
@@ -201,7 +201,7 @@ impl PPU {
     }
 
     // decode bg and window pixel
-    fn decode_bg_win(&self, row: u16, col: u16, map: u16) -> Result<Pixel, Error> {
+    fn decode_bg_win(&self, row: u16, col: u16, map: u16) -> Result<Pixel> {
         // tile pixel
         let prow = row % 8;
         let pcol = 7 - col % 8;
@@ -230,7 +230,7 @@ impl PPU {
         data_select: u16,
         pal: u8,
         opacity: bool,
-    ) -> Result<Option<Pixel>, Error> {
+    ) -> Result<Option<Pixel>> {
         // tile data (each row takes 2 bytes so a full 8x8 tile consists of 16 bytes)
         let tile_data_offset = decode_tile_data_offset(index, data_select);
         let data_address = data_select + tile_data_offset * 16 + (prow * 2);
@@ -269,7 +269,7 @@ impl Update for PPU {
 impl Device for PPU {
     const DEBUG_NAME: &'static str = "Pixel Processing Unit";
 
-    fn read(&self, address: u16) -> Result<u8, Error> {
+    fn read(&self, address: u16) -> Result<u8> {
         match address {
             0x8000..=0x9fff => self.video_ram.read(address),
             0xfe00..=0xfe9f => self.oam.read(address),
@@ -283,7 +283,7 @@ impl Device for PPU {
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
+    fn write(&mut self, address: u16, data: u8) -> Result<()> {
         match address {
             0x8000..=0x9fff => self.video_ram.write(address, data),
             0xfe00..=0xfe9f => self.oam.write(address, data),

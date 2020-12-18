@@ -1,4 +1,8 @@
-use crate::{device::Device, error::Error, irq, Update};
+use crate::{
+    device::{Device, Result},
+    error::Error,
+    irq, Update,
+};
 use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -36,7 +40,7 @@ impl Update for DMA {
 impl Device for DMA {
     const DEBUG_NAME: &'static str = "OAM DMA";
 
-    fn read(&self, address: u16) -> Result<u8, Error> {
+    fn read(&self, address: u16) -> Result<u8> {
         if address != 0xff46 {
             Err(Error::InvalidAddr(address))
         } else {
@@ -44,7 +48,7 @@ impl Device for DMA {
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
+    fn write(&mut self, address: u16, data: u8) -> Result<()> {
         if address != 0xff46 {
             Err(Error::InvalidAddr(address))
         } else {

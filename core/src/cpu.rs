@@ -1,4 +1,7 @@
-use crate::{cartridge::Cartridge, device::Device, error::Error};
+use crate::{
+    cartridge::Cartridge,
+    device::{Device, Result},
+};
 use log::info;
 pub use registers::Registers;
 #[cfg(feature = "serde")]
@@ -33,7 +36,7 @@ impl CPU {
         self.ime
     }
 
-    pub(super) fn update<D: Device>(&mut self, device: &mut D) -> Result<u64, Error> {
+    pub(super) fn update<D: Device>(&mut self, device: &mut D) -> Result<u64> {
         let int = self.int(device)?;
         let cycles = if int != 0 {
             int
@@ -46,7 +49,7 @@ impl CPU {
         Ok(cycles)
     }
 
-    fn int<D: Device>(&mut self, device: &mut D) -> Result<u64, Error> {
+    fn int<D: Device>(&mut self, device: &mut D) -> Result<u64> {
         let ie = device.read(0xffff)?;
         let if_ = device.read(0xff0f)?;
         let tr = (ie & if_).trailing_zeros() as u8;
@@ -62,13 +65,13 @@ impl CPU {
         Ok(cycles::unprefixed(0, false)) // NOP
     }
 
-    fn int_v<D: Device>(&mut self, v: u16, device: &mut D) -> Result<(), Error> {
+    fn int_v<D: Device>(&mut self, v: u16, device: &mut D) -> Result<()> {
         self.stack_push(self.registers.pc, device)?;
         self.registers.pc = v;
         Ok(())
     }
 
-    fn exec_opcode_cb<D: Device>(&mut self, device: &mut D, opcode: u8) -> Result<u64, Error> {
+    fn exec_opcode_cb<D: Device>(&mut self, device: &mut D, opcode: u8) -> Result<u64> {
         match opcode {
             // RLC n
             0x00 => self.registers.b = self.rlc_n(self.registers.b),
@@ -466,7 +469,7 @@ impl CPU {
         Ok(cycles::prefixed(opcode))
     }
 
-    fn exec_opcode<D: Device>(&mut self, device: &mut D, opcode: u8) -> Result<u64, Error> {
+    fn exec_opcode<D: Device>(&mut self, device: &mut D, opcode: u8) -> Result<u64> {
         let mut branch = false;
 
         match opcode {
@@ -981,7 +984,7 @@ impl CPU {
         Ok(cycles::unprefixed(opcode, branch))
     }
 
-    fn exec<D: Device>(&mut self, device: &mut D) -> Result<u64, Error> {
+    fn exec<D: Device>(&mut self, device: &mut D) -> Result<u64> {
         let opcode = self.fetch(device)?;
         if opcode == 0xcb {
             let cb = self.fetch(device)?;
@@ -996,27 +999,27 @@ impl CPU {
         }
     }
 
-    fn fetch<D: Device>(&mut self, device: &D) -> Result<u8, Error> {
+    fn fetch<D: Device>(&mut self, device: &D) -> Result<u8> {
         let opcode = device.read(self.registers.pc)?;
         self.registers.pc += 1;
         Ok(opcode)
     }
 
-    fn fetch_word<D: Device>(&mut self, device: &D) -> Result<u16, Error> {
+    fn fetch_word<D: Device>(&mut self, device: &D) -> Result<u16> {
         let lo = device.read(self.registers.pc)? as u16;
         let hi = device.read(self.registers.pc + 1)? as u16;
         self.registers.pc += 2;
         Ok((hi << 8) | lo)
     }
 
-    fn fetch_signed<D: Device>(&mut self, device: &D) -> Result<i8, Error> {
+    fn fetch_signed<D: Device>(&mut self, device: &D) -> Result<i8> {
         let data: i8 = unsafe { std::mem::transmute(self.fetch(device)?) };
         Ok(data)
     }
 
     // Pushes word into the stack
     // Decrements SP by 2
-    fn stack_push<D: Device>(&mut self, nn: u16, device: &mut D) -> Result<(), Error> {
+    fn stack_push<D: Device>(&mut self, nn: u16, device: &mut D) -> Result<()> {
         self.registers.sp -= 2;
         device.write_word(self.registers.sp, nn)?;
         Ok(())
@@ -1024,7 +1027,7 @@ impl CPU {
 
     // Pops word from the stack
     // Increments SP by 2
-    fn stack_pop<D: Device>(&mut self, device: &D) -> Result<u16, Error> {
+    fn stack_pop<D: Device>(&mut self, device: &D) -> Result<u16> {
         let data = device.read_word(self.registers.sp)?;
         self.registers.sp += 2;
         Ok(data)
@@ -1325,7 +1328,7 @@ impl CPU {
     // Pushes present address onto stack.
     // Jump to address $000 + n
     // n = 00,$08,$10,$18,$20,$28,$30,$38
-    fn rst_n<D: Device>(&mut self, n: u8, device: &mut D) -> Result<(), Error> {
+    fn rst_n<D: Device>(&mut self, n: u8, device: &mut D) -> Result<()> {
         self.stack_push(self.registers.pc, device)?;
         self.registers.pc = n as u16;
         Ok(())
@@ -1336,7 +1339,7 @@ impl CPU {
     // c = Z = Call if Z flag is set.
     // c = NC, Call if C flag is reset.
     // c = C = Call if C flag is set.
-    fn call_c_n<D: Device>(&mut self, branch: bool, device: &mut D) -> Result<bool, Error> {
+    fn call_c_n<D: Device>(&mut self, branch: bool, device: &mut D) -> Result<bool> {
         let n = self.fetch_word(device)?;
         if branch {
             self.stack_push(self.registers.pc, device)?;
@@ -1346,7 +1349,7 @@ impl CPU {
     }
 
     // Push address of next instruction onto the stack and then jump to address n.
-    fn call_n<D: Device>(&mut self, device: &mut D) -> Result<(), Error> {
+    fn call_n<D: Device>(&mut self, device: &mut D) -> Result<()> {
         let n = self.fetch_word(device)?;
         self.stack_push(self.registers.pc, device)?;
         self.registers.pc = n;
@@ -1358,7 +1361,7 @@ impl CPU {
     // c = Z = Call if Z flag is set.
     // c = NC, Call if C flag is reset.
     // c = C =Call if C flag is set.
-    fn jp_c_n<D: Device>(&mut self, branch: bool, device: &mut D) -> Result<bool, Error> {
+    fn jp_c_n<D: Device>(&mut self, branch: bool, device: &mut D) -> Result<bool> {
         let n = self.fetch_word(device)?;
         if branch {
             self.registers.pc = n;
@@ -1367,7 +1370,7 @@ impl CPU {
     }
 
     // Add n to current address and jump tp it.
-    fn jr_c<D: Device>(&mut self, branch: bool, device: &mut D) -> Result<bool, Error> {
+    fn jr_c<D: Device>(&mut self, branch: bool, device: &mut D) -> Result<bool> {
         let n = self.fetch_signed(device)?;
         if branch {
             let pc = i32::from(self.registers.pc) + i32::from(n);

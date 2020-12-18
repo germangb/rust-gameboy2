@@ -1,6 +1,11 @@
 use crate::{
-    cartridge::Cartridge, cpu::CPU, device::Device, error::Error, irq, lcd::Display, Button,
-    Emulator,
+    cartridge::Cartridge,
+    cpu::CPU,
+    device::{Device, Result},
+    error::Error,
+    irq,
+    lcd::Display,
+    Button, Emulator,
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -25,7 +30,7 @@ pub struct GameBoy<C: Cartridge> {
 }
 
 impl<C: Cartridge> GameBoy<C> {
-    pub fn new(cartridge: C) -> Result<Self, Error> {
+    pub fn new(cartridge: C) -> Result<Self> {
         let mut emulator = Self {
             booted: false,
             emulator: Emulator::new(cartridge),
@@ -52,7 +57,7 @@ impl<C: Cartridge> GameBoy<C> {
         self.emulator.cpu.as_mut().unwrap()
     }
 
-    pub fn press(&mut self, button: &Button) -> Result<(), Error> {
+    pub fn press(&mut self, button: &Button) -> Result<()> {
         self.emulator.joypad.press(button);
         self.emulator.irq.fi |= irq::Flags::JOYPAD;
         Ok(())
@@ -63,7 +68,7 @@ impl<C: Cartridge> GameBoy<C> {
     }
 
     /// Skip boot sequence.
-    pub fn skip_boot(&mut self) -> Result<(), Error> {
+    pub fn skip_boot(&mut self) -> Result<()> {
         if self.booted {
             if cfg!(debug_assertions) {
                 panic!("Emulator is already booted!");
@@ -77,7 +82,7 @@ impl<C: Cartridge> GameBoy<C> {
     }
 
     /// Update emulator.
-    pub fn update_frame(&mut self) -> Result<(), Error> {
+    pub fn update_frame(&mut self) -> Result<()> {
         self.emulator.update_frame()
     }
 
@@ -92,7 +97,7 @@ impl<C: Cartridge> GameBoy<C> {
         cpu.registers_mut().pc = 0x0100;
     }
 
-    fn boot_memory(&mut self) -> Result<(), Error> {
+    fn boot_memory(&mut self) -> Result<()> {
         let mmu = &mut self.emulator;
 
         mmu.write(0xff05, 0x00)?;
@@ -135,11 +140,11 @@ impl<C: Cartridge> GameBoy<C> {
 impl<C: Cartridge> Device for GameBoy<C> {
     const DEBUG_NAME: &'static str = "GameBoy (DMG01)";
 
-    fn read(&self, address: u16) -> Result<u8, Error> {
+    fn read(&self, address: u16) -> Result<u8> {
         self.emulator.read(address)
     }
 
-    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
+    fn write(&mut self, address: u16, data: u8) -> Result<()> {
         self.emulator.write(address, data)
     }
 }

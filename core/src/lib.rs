@@ -22,7 +22,7 @@ use crate::{
     boot::Boot,
     cartridge::Cartridge,
     cpu::CPU,
-    device::Device,
+    device::{Device, Result},
     dma::DMA,
     irq::IRQ,
     joypad::Joypad,
@@ -33,10 +33,8 @@ use crate::{
 use log::{info, warn};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use std::cell::Cell;
 
 // re-exports
-use crate::error::Error;
 pub use gb::GameBoy;
 pub use joypad::Button;
 pub use ppu::lcd;
@@ -54,7 +52,7 @@ mod joypad;
 mod ppu;
 mod ram;
 mod timer;
-mod utils;
+pub mod utils;
 
 const CLOCK: u64 = 4_194_304;
 
@@ -103,7 +101,7 @@ impl<C: Cartridge> Emulator<C> {
         self.ppu.set_debug_overlays(b);
     }
 
-    fn update(&mut self) -> Result<(), Error> {
+    fn update(&mut self) -> Result<()> {
         let mut cpu = self.cpu.take().unwrap();
         let ticks = cpu.update(self)?;
         self.cpu = Some(cpu);
@@ -118,7 +116,7 @@ impl<C: Cartridge> Emulator<C> {
         Ok(())
     }
 
-    fn update_frame(&mut self) -> Result<(), Error> {
+    fn update_frame(&mut self) -> Result<()> {
         // run until VBLANK
         while self.read(0xff41)? & 0b11 != 0b01 {
             self.update()?;
@@ -135,7 +133,7 @@ impl<C: Cartridge> Emulator<C> {
     }
 
     #[rustfmt::skip]
-    fn read_io(&self, address: u16) -> Result<u8, Error> {
+    fn read_io(&self, address: u16) -> Result<u8> {
         match address {
             0xff00          => self.joypad.read(address),
             0xff01..=0xff02 => {
@@ -170,7 +168,7 @@ impl<C: Cartridge> Emulator<C> {
     }
 
     #[rustfmt::skip]
-    fn write_io(&mut self, address: u16, data: u8) -> Result<(), Error> {
+    fn write_io(&mut self, address: u16, data: u8) -> Result<()> {
         match address {
             0xff00          => self.joypad.write(address, data),
             0xff01..=0xff02 => {
@@ -214,7 +212,7 @@ impl<C: Cartridge> Emulator<C> {
         }
     }
 
-    fn oam_dma_transfer(&mut self) -> Result<(), Error> {
+    fn oam_dma_transfer(&mut self) -> Result<()> {
         let src = self.oam_dma.start_address();
 
         let src = src..=src | 0x9f;
@@ -231,7 +229,7 @@ impl<C: Cartridge> Emulator<C> {
 impl<C: Cartridge> Device for Emulator<C> {
     const DEBUG_NAME: &'static str = "Emulator";
 
-    fn read(&self, address: u16) -> Result<u8, Error> {
+    fn read(&self, address: u16) -> Result<u8> {
         let boot = self.boot.is_enabled();
 
         match address {
@@ -262,7 +260,7 @@ impl<C: Cartridge> Device for Emulator<C> {
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
+    fn write(&mut self, address: u16, data: u8) -> Result<()> {
         let boot = self.boot.is_enabled();
 
         match address {

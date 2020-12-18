@@ -1,6 +1,6 @@
 use crate::{
     cartridge::{ram_banks, Cartridge},
-    device::Device,
+    device::{Device, Result},
     error::Error,
 };
 use log::info;
@@ -63,7 +63,7 @@ impl Cartridge for MBC3 {}
 impl Device for MBC3 {
     const DEBUG_NAME: &'static str = "ROM (MBC3)";
 
-    fn read(&self, address: u16) -> Result<u8, Error> {
+    fn read(&self, address: u16) -> Result<u8> {
         match address {
             0x0000..=0x3fff => Ok(self.rom[address as usize]),
             0x4000..=0x7fff => Ok(self.rom[self.rom_bank_address(address)]),
@@ -76,7 +76,7 @@ impl Device for MBC3 {
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
+    fn write(&mut self, address: u16, data: u8) -> Result<()> {
         match address {
             0x0000..=0x1fff => self.ram_timer_enabled = (data & 0xf) == 0xa,
             0x2000..=0x3fff => self.rom_bank = data as usize,

@@ -277,6 +277,8 @@ impl Device for PPU {
                 0xff44..=0xff45 => self.stat.read(address),
                 0xff47..=0xff49 => self.palette.read(address),
                 0xff4a..=0xff4b => self.window.read(address),
+                0xff4f => self.video_ram.read(address),
+                0xff68..=0xff6a => todo!("[READ] CGB Palette"),
             }
         }
     }
@@ -302,6 +304,8 @@ impl Device for PPU {
                 0xff44..=0xff45 => self.stat.write(address, data),
                 0xff47..=0xff49 => self.palette.write(address, data),
                 0xff4a..=0xff4b => self.window.write(address, data),
+                0xff4f => self.video_ram.write(address, data),
+                0xff68..=0xff6a => todo!("[WRITE] CGB Palette"),
             }
         }
     }

@@ -11,7 +11,14 @@ bitflags! {
         const Y_FLIP             = 0b01000000;
         const X_FLIP             = 0b00100000;
         const PAL_NUMBER         = 0b00010000;
-        const UNUSED             = 0b00001111;
+        const CBG_VRAM_BANK      = 0b00001000;
+        const CBG_PAL_NUMBER     = 0b00000111;
+    }
+}
+
+impl Flags {
+    pub fn cgb_pal_number(&self) -> u8 {
+        self.bits & 0b111
     }
 }
 

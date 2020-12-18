@@ -2,7 +2,6 @@ use crate::{
     cartridge::Cartridge,
     cpu::CPU,
     device::{Device, Result},
-    error::Error,
     irq,
     lcd::Display,
     Button, Emulator,

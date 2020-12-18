@@ -156,19 +156,14 @@ impl<C: Cartridge> Emulator<C> {
             0xff40..=0xff45 => self.ppu.read(address),
             0xff46 => self.oam_dma.read(address),
             0xff47..=0xff4b => self.ppu.read(address),
-            0xff4f => {
-                warn!("Game Boy Color (VRAM Bank Select)");
-                Ok(0)
-            }
+            0xff4f => self.ppu.read(address),
             0xff50 => self.boot.read(address),
             0xff51..=0xff55 => {
-                warn!("Game Boy color");
+                warn!("Game Boy color (HDMA)");
                 Ok(0)
             }
-            0xff68..=0xff6a => {
-                warn!("Game Boy color (DMA)");
-                Ok(0)
-            }
+            0xff68..=0xff6a => self.ppu.read(address),
+            0xff70 => self.work_ram.read(address),
             _ => {
                 warn!("Unknown IO address: {:04x}", address);
                 Ok(0xff)
@@ -200,19 +195,14 @@ impl<C: Cartridge> Emulator<C> {
                 Ok(())
             }
             0xff47..=0xff4b => self.ppu.write(address, data),
-            0xff4f => {
-                warn!("Game Boy Color (VRAM Bank Select): {:02x}", data);
-                Ok(())
-            }
+            0xff4f => self.ppu.write(address, data),
             0xff50 => self.boot.write(address, data),
             0xff51..=0xff55 => {
-                warn!("Game Boy color");
+                warn!("Game Boy color (HDMA)");
                 Ok(())
             }
-            0xff68..=0xff6a => {
-                warn!("Game Boy color (DMA)");
-                Ok(())
-            }
+            0xff68..=0xff6a => self.ppu.write(address, data),
+            0xff70 => self.work_ram.write(address, data),
             _ => {
                 warn!("Unknown IO address: {:04x}, data: {:02x}", address, data);
                 Ok(())

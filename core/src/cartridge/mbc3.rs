@@ -7,14 +7,16 @@ use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 enum Mode {
     Ram,
     Rtc,
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct MBC3 {
     rom: Box<[u8]>,
-    ram: Vec<[u8; 0x2000]>,
+    ram: Box<[u8]>,
     // The Clock Counter Registers
     // 08h  RTC S   Seconds   0-59 (0-3Bh)
     // 09h  RTC M   Minutes   0-59 (0-3Bh)
@@ -37,7 +39,7 @@ impl MBC3 {
         let ram_banks = ram_banks(rom[0x149]);
         Self {
             rom: rom.into_boxed_slice(),
-            ram: vec![[0; 0x2000]; ram_banks],
+            ram: vec![0; 0x2000 * ram_banks].into_boxed_slice(),
             rtc: [0; 5],
             rtc_select: 0,
             rom_bank: 0,
@@ -47,8 +49,12 @@ impl MBC3 {
         }
     }
 
-    fn rom_addr(&self, addr: usize) -> usize {
-        0x4000 * self.rom_bank.max(1) + addr - 0x4000
+    fn rom_bank_address(&self, address: u16) -> usize {
+        0x4000 * self.rom_bank.max(1) + (address as usize) - 0x4000
+    }
+
+    fn ram_bank_address(&self, address: u16) -> usize {
+        0x2000 * self.ram_bank + (address as usize) - 0xa000
     }
 }
 
@@ -58,85 +64,40 @@ impl Device for MBC3 {
     const DEBUG_NAME: &'static str = "ROM (MBC3)";
 
     fn read(&self, address: u16) -> Result<u8, Error> {
-        match address as usize {
-            addr @ 0x0000..=0x3fff => Ok(self.rom[addr]),
-            addr @ 0x4000..=0x7fff => {
-                let addr = self.rom_addr(addr);
-
-                Ok(self.rom.get(addr).copied().unwrap_or(0))
-            }
-            addr @ 0xa000..=0xbfff => {
-                if self.ram_timer_enabled {
-                    let data = match self.mode {
-                        Mode::Ram => self
-                            .ram
-                            .get(self.ram_bank)
-                            .map(|bank| bank[addr - 0xa000])
-                            .unwrap_or(0),
-                        Mode::Rtc => self.rtc[self.rtc_select],
-                    };
-
-                    Ok(data)
-                } else {
-                    Ok(0)
-                }
-            }
+        match address {
+            0x0000..=0x3fff => Ok(self.rom[address as usize]),
+            0x4000..=0x7fff => Ok(self.rom[self.rom_bank_address(address)]),
+            0xa000..=0xbfff if self.ram_timer_enabled => match self.mode {
+                Mode::Ram => Ok(self.ram[self.ram_bank_address(address)]),
+                Mode::Rtc => Ok(self.rtc[self.rtc_select]),
+            },
+            0xa000..=0xbfff => Ok(0),
             _ => Err(Error::InvalidAddr(address)),
         }
     }
 
-    fn write(&mut self, addr: u16, data: u8) -> Result<(), Error> {
-        match addr as usize {
-            0x0000..=0x1fff => self.ram_timer_enabled = data & 0xf == 0xa,
-            0x2000..=0x3fff => {
-                info!("Selected ROM bank: {}", data);
-
-                self.rom_bank = data as usize;
-            }
-            // As for the MBC1s RAM Banking Mode, writing a value in range for 00h-03h maps the
-            // corresponding external RAM Bank (if any) into memory at A000-BFFF.
-            //
-            // When writing a value of 08h-0Ch, this will map the corresponding RTC register into
-            // memory at A000-BFFF. That register could then be read/written by accessing any
-            // address in that area, typically that is done by using address A000.
+    fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
+        match address {
+            0x0000..=0x1fff => self.ram_timer_enabled = (data & 0xf) == 0xa,
+            0x2000..=0x3fff => self.rom_bank = data as usize,
             0x4000..=0x5fff => match data {
                 0x00..=0x03 => {
-                    info!("Selected RAM bank: {}", data);
-
                     self.mode = Mode::Ram;
                     self.ram_bank = data as usize
                 }
                 0x08..=0x0c => {
-                    info!("Select RTC clock mode: {}", data);
-
                     self.mode = Mode::Rtc;
-                    self.rtc_select = data as usize - 0x08
+                    self.rtc_select = (data as usize) - 0x08
                 }
                 _ => panic!(),
             },
-            // When writing 00h, and then 01h to this register, the current time becomes latched
-            // into the RTC registers. The latched data will not change until it becomes latched
-            // again, by repeating the write 00h->01h procedure.
-            //
-            // This is supposed for <reading> from the RTC registers. It is proof to read the
-            // latched (frozen) time from the RTC registers, while the clock itself continues to
-            // tick in background.
             0x6000..=0x7fff => {}
-            // Depending on the current Bank Number/RTC Register selection (see below), this memory
-            // space is used to access an 8KByte external RAM Bank, or a single RTC Register.
-            addr @ 0xa000..=0xbfff => {
-                if self.ram_timer_enabled {
-                    match self.mode {
-                        Mode::Ram => {
-                            if let Some(bank) = self.ram.get_mut(self.ram_bank) {
-                                bank[addr - 0xa000] = data
-                            }
-                        }
-                        Mode::Rtc => self.rtc[self.rtc_select] = data,
-                    }
-                }
-            }
-            _ => return Err(Error::InvalidAddr(addr)),
+            0xa000..=0xbfff if self.ram_timer_enabled => match self.mode {
+                Mode::Ram => self.ram[self.ram_bank_address(address)] = data,
+                Mode::Rtc => self.rtc[self.rtc_select] = data,
+            },
+            0xa000..=0xbfff => {}
+            _ => return Err(Error::InvalidAddr(address)),
         }
 
         Ok(())

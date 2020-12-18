@@ -7,14 +7,16 @@ use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 enum Mode {
     Rom,
     Ram,
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct MBC1 {
     rom: Box<[u8]>,
-    ram: Vec<[u8; 0x2000]>,
+    ram: Box<[u8]>,
     rom_bank: usize,
     ram_bank: usize,
     ram_enable: bool,
@@ -26,7 +28,7 @@ impl MBC1 {
         let ram_banks = ram_banks(rom[0x149]);
         Self {
             rom: rom.into_boxed_slice(),
-            ram: vec![[0; 0x2000]; ram_banks],
+            ram: vec![0u8; 0x2000 * ram_banks].into_boxed_slice(),
             rom_bank: 0,
             ram_bank: 0,
             ram_enable: false,
@@ -34,8 +36,12 @@ impl MBC1 {
         }
     }
 
-    fn rom_addr(&self, addr: u16) -> usize {
-        0x4000 * self.rom_bank.max(1) + (addr as usize) - 0x4000
+    fn rom_bank_address(&self, address: u16) -> usize {
+        0x4000 * self.rom_bank.max(1) + (address as usize) - 0x4000
+    }
+
+    fn ram_bank_address(&self, address: u16) -> usize {
+        0x2000 * self.ram_bank + (address as usize) - 0xa000
     }
 }
 
@@ -46,60 +52,27 @@ impl Device for MBC1 {
 
     fn read(&self, address: u16) -> Result<u8, Error> {
         match address {
-            0x0000..=0x3fff => Ok(self.rom.get(address as usize).copied().unwrap_or(0xff)),
-            0x4000..=0x7fff => {
-                let addr = self.rom_addr(address);
-                Ok(self.rom.get(addr).copied().unwrap_or(0))
-            }
-            0xa000..=0xbfff => {
-                if self.ram_enable {
-                    let data = self
-                        .ram
-                        .get(self.ram_bank)
-                        .map(|bank| bank[address as usize - 0xa000])
-                        .unwrap_or(0);
-
-                    Ok(data)
-                } else {
-                    Ok(0)
-                }
-            }
+            0x0000..=0x3fff => Ok(self.rom[address as usize]),
+            0x4000..=0x7fff => Ok(self.rom[self.rom_bank_address(address)]),
+            0xa000..=0xbfff if self.ram_enable => Ok(self.ram[self.ram_bank_address(address)]),
+            0xa000..=0xbfff => Ok(0),
             _ => Err(Error::InvalidAddr(address)),
         }
     }
 
     fn write(&mut self, address: u16, data: u8) -> Result<(), Error> {
         match address {
-            // Before external RAM can be read or written, it must be enabled by writing to this
-            // address space. It is recommended to disable external RAM after accessing it, in order
-            // to protect its contents from damage during power down of the gameboy. Usually the
-            // following values are used:
             0x0000..=0x1fff => self.ram_enable = data & 0xf == 0xa,
-            // Writing to this address space selects the lower 5 bits of the ROM Bank Number (in
-            // range 01-1Fh). When 00h is written, the MBC translates that to bank 01h also. That
-            // doesn't harm so far, because ROM Bank 00h can be always directly accessed by reading
-            // from 0000-3FFF.
             0x2000..=0x3fff => {
                 self.rom_bank &= 0x60;
                 self.rom_bank |= data as usize & 0x1f;
-
-                info!("ROM bank select (lower 5 bits): {}", self.rom_bank);
             }
-            // This 2bit register can be used to select a RAM Bank in range from 00-03h, or to
-            // specify the upper two bits (Bit 5-6) of the ROM Bank number, depending on the current
-            // ROM/RAM Mode. (See below.)
             0x4000..=0x5fff => match self.mode {
                 Mode::Rom => {
-                    info!("ROM bank select (upper 2 bits): {}", data);
-
                     self.rom_bank &= 0x1f;
                     self.rom_bank |= (data as usize & 0x3) << 5;
                 }
-                Mode::Ram => {
-                    info!("RAM bank select (upper 2 bits): {}", data);
-
-                    self.ram_bank = data as usize & 0x3;
-                }
+                Mode::Ram => self.ram_bank = data as usize & 0x3,
             },
             0x6000..=0x7fff => {
                 self.mode = match data {
@@ -108,11 +81,7 @@ impl Device for MBC1 {
                     _ => panic!(),
                 }
             }
-            0xa000..=0xbfff => {
-                if let Some(bank) = self.ram.get_mut(self.ram_bank) {
-                    bank[address as usize - 0xa000] = data
-                }
-            }
+            0xa000..=0xbfff => self.ram[self.ram_bank_address(address)] = data,
             _ => return Err(Error::InvalidAddr(address)),
         }
 

@@ -126,7 +126,14 @@ impl PPU {
                     let row = (ly - wy) as u16;
                     let col = (dot - wx) as u16;
 
-                    self.decode_bg_win(row, col, self.lcdc.window_map_select())?
+                    let mut color = self.decode_bg_win(row, col, self.lcdc.window_map_select())?;
+
+                    #[cfg(feature = "debug")]
+                    if self.debug_overlays {
+                        color = debug::mix(color, 0x00ffff, 0.5);
+                    }
+
+                    color
                 } else {
                     self.decode_bg_win(row, col, self.lcdc.bg_map_select())?
                 }

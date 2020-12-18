@@ -1,7 +1,7 @@
 use crate::camera_sensor::CameraSensor;
 use camera::PoketCamera;
 use core::{
-    cartridge::{mbc3::MBC3, rom::ROM, Cartridge, NoCartridge, MBC1},
+    cartridge::{mbc3::MBC3, Cartridge, NoCartridge, MBC1, ROM},
     Button, GameBoy,
 };
 use log::{error, info, warn, LevelFilter};
@@ -36,6 +36,9 @@ struct App {
 
     #[structopt(short, long, default_value = "2")]
     scale: u8,
+
+    #[structopt(long)]
+    borderless: bool,
 
     #[structopt(short, long)]
     verbose: bool,
@@ -72,7 +75,7 @@ fn read_rom(path: &Path) -> Result<Vec<u8>, Error> {
 fn run(app: &App, cartridge: impl Cartridge) {
     let mut opts = WindowOptions::default();
     opts.scale = app.window_scale();
-    opts.borderless = true;
+    opts.borderless = app.borderless;
     let mut window = Window::new(&app.window_title(), 160, 144, opts).unwrap();
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
@@ -175,8 +178,7 @@ fn main() -> Result<(), Error> {
                 run(&app, PoketCamera::new(sensor));
             }
             _ => {
-                error!("Unknown cartridge type: {:02X}h", kind);
-                panic!();
+                panic!("Unknown cartridge type: {:02X}h", kind);
             }
         }
     } else {

@@ -1,5 +1,5 @@
 use crate::{device::Device, error::Error, irq};
-use log::info;
+use log::{info, warn};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -184,7 +184,9 @@ impl Device for STAT {
                 self.stat &= 0b0000_0111;
                 self.stat |= data & 0b0111_1000;
             }
-            0xff44 => todo!(),
+            0xff44 => {
+                warn!("WRITE to LY is undefined.");
+            }
             0xff45 => {
                 info!("LYC: {:02x}", data);
 

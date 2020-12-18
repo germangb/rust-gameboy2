@@ -3,22 +3,19 @@ use byteorder::{ByteOrder, LittleEndian};
 
 type Endianness = LittleEndian;
 
-pub type Address = u16;
-pub type Data = u8;
-
 pub trait Device {
     const DEBUG_NAME: &'static str;
 
-    fn read(&self, address: Address) -> Result<Data, Error>;
+    fn read(&self, address: u16) -> Result<u8, Error>;
 
-    fn write(&mut self, address: Address, data: Data) -> Result<(), Error>;
+    fn write(&mut self, address: u16, data: u8) -> Result<(), Error>;
 
-    fn read_word(&self, address: Address) -> Result<u16, Error> {
+    fn read_word(&self, address: u16) -> Result<u16, Error> {
         let bytes = [self.read(address)?, self.read(address + 1)?];
         Ok(Endianness::read_u16(&bytes[..]))
     }
 
-    fn write_word(&mut self, address: Address, data: u16) -> Result<(), Error> {
+    fn write_word(&mut self, address: u16, data: u16) -> Result<(), Error> {
         let mut bytes = [0; 2];
         Endianness::write_u16(&mut &mut bytes[..], data);
         self.write(address, bytes[0])?;

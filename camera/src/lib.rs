@@ -158,6 +158,14 @@ impl<S: Sensor> PoketCamera<S> {
             }
         }
     }
+
+    fn rom_bank_address(&self, address: u16) -> usize {
+        0x4000 * self.rom_bank + (address as usize) - 0x4000
+    }
+
+    fn ram_bank_address(&self, address: u16) -> usize {
+        0x2000 * self.ram_bank + (address as usize) - 0xa000
+    }
 }
 
 impl<S: Sensor> Device for PoketCamera<S> {
@@ -166,15 +174,11 @@ impl<S: Sensor> Device for PoketCamera<S> {
     fn read(&self, address: u16) -> Result<u8, Error> {
         match address {
             0x0000..=0x3fff => Ok(ROM[address as usize]),
-            0x4000..=0x7fff => {
-                let offset = 0x4000 * self.rom_bank;
-
-                Ok(ROM[offset + address as usize - 0x4000])
-            }
+            0x4000..=0x7fff => Ok(ROM[self.rom_bank_address(address)]),
             0xa000..=0xbfff => match self.mode {
                 // Reading from RAM or registers is always enabled. Writing to registers is always
                 // enabled. Disabled on reset.
-                Mode::Ram => Ok(self.ram[0x2000 * self.ram_bank + address as usize - 0xa000]),
+                Mode::Ram => Ok(self.ram[self.ram_bank_address(address)]),
                 Mode::Cam => match 0xa000 + (address % 0x80) {
                     0xa000 => Ok(self.registers.a000 & 0x7),
                     0xa001 => Ok(0),
@@ -210,9 +214,7 @@ impl<S: Sensor> Device for PoketCamera<S> {
                 }
             }
             0xa000..=0xbfff => match self.mode {
-                Mode::Ram if self.ram_enabled => {
-                    self.ram[0x2000 * self.ram_bank + address as usize - 0xa000] = data
-                }
+                Mode::Ram if self.ram_enabled => self.ram[self.ram_bank_address(address)] = data,
                 Mode::Cam => match 0xa000 + (address % 0x80) {
                     0xa000 => self.registers.a000 = data & 0x7,
                     0xa001 => self.registers.a001 = data,

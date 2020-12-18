@@ -22,7 +22,7 @@ use crate::{
     boot::Boot,
     cartridge::Cartridge,
     cpu::CPU,
-    device::{Address, Device},
+    device::Device,
     dma::DMA,
     irq::IRQ,
     joypad::Joypad,
@@ -135,7 +135,7 @@ impl<C: Cartridge> Emulator<C> {
     }
 
     #[rustfmt::skip]
-    fn read_io(&self, address: Address) -> Result<u8, Error> {
+    fn read_io(&self, address: u16) -> Result<u8, Error> {
         match address {
             0xff00          => self.joypad.read(address),
             0xff01..=0xff02 => {
@@ -170,7 +170,7 @@ impl<C: Cartridge> Emulator<C> {
     }
 
     #[rustfmt::skip]
-    fn write_io(&mut self, address: Address, data: u8) -> Result<(), Error> {
+    fn write_io(&mut self, address: u16, data: u8) -> Result<(), Error> {
         match address {
             0xff00          => self.joypad.write(address, data),
             0xff01..=0xff02 => {

@@ -2,7 +2,7 @@ use crate::{
     device::{Device, Result},
     irq,
     ppu::{
-        io::{lcdc::LCDC, stat::STAT, Palette, Scroll, Window},
+        io::{lcdc::LCDC, stat::STAT, ColorPalette, Palette, Scroll, Window},
         lcd::{Display, DisplaySerde, Pixel},
         oam::{Entry, Flags, OAM},
     },
@@ -31,6 +31,7 @@ pub struct PPU {
     scroll: Scroll,
     window: Window,
     palette: Palette,
+    color_palette: ColorPalette,
     #[cfg(feature = "debug")]
     debug_overlays: bool,
 }
@@ -278,7 +279,7 @@ impl Device for PPU {
                 0xff47..=0xff49 => self.palette.read(address),
                 0xff4a..=0xff4b => self.window.read(address),
                 0xff4f => self.video_ram.read(address),
-                0xff68..=0xff6a => todo!("[READ] CGB Palette"),
+                0xff68..=0xff6b => self.color_palette.read(address),
             }
         }
     }
@@ -305,7 +306,7 @@ impl Device for PPU {
                 0xff47..=0xff49 => self.palette.write(address, data),
                 0xff4a..=0xff4b => self.window.write(address, data),
                 0xff4f => self.video_ram.write(address, data),
-                0xff68..=0xff6a => todo!("[WRITE] CGB Palette"),
+                0xff68..=0xff6b => self.color_palette.write(address, data),
             }
         }
     }

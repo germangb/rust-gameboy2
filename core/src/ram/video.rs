@@ -16,8 +16,8 @@ bitflags! {
 }
 
 impl Attributes {
-    pub fn palette(&self) -> u8 {
-        self.bits & 0b111
+    pub fn palette(&self) -> usize {
+        (self.bits & 0b111) as _
     }
 }
 

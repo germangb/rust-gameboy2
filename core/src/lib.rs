@@ -162,7 +162,7 @@ impl<C: Cartridge> Emulator<C> {
                 warn!("Game Boy color (HDMA)");
                 Ok(0)
             }
-            0xff68..=0xff6a => self.ppu.read(address),
+            0xff68..=0xff6b => self.ppu.read(address),
             0xff70 => self.work_ram.read(address),
             _ => {
                 warn!("Unknown IO address: {:04x}", address);
@@ -201,7 +201,7 @@ impl<C: Cartridge> Emulator<C> {
                 warn!("Game Boy color (HDMA)");
                 Ok(())
             }
-            0xff68..=0xff6a => self.ppu.write(address, data),
+            0xff68..=0xff6b => self.ppu.write(address, data),
             0xff70 => self.work_ram.write(address, data),
             _ => {
                 warn!("Unknown IO address: {:04x}, data: {:02x}", address, data);

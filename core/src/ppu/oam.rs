@@ -17,8 +17,8 @@ bitflags! {
 }
 
 impl Flags {
-    pub fn cgb_pal_number(&self) -> u8 {
-        self.bits & 0b111
+    pub fn palette(&self) -> usize {
+        (self.bits & 0b111) as _
     }
 }
 

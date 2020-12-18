@@ -1,4 +1,7 @@
-use crate::device::{Device, Result};
+use crate::{
+    device::{Device, Result},
+    ppu::lcd::Pixel,
+};
 use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -129,6 +132,93 @@ impl Device for Palette {
 
                     self.obp1 = data
                 }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ColorPalette {
+    bgpi: u8,
+    obpi: u8,
+    bgp: Box<[u8]>,
+    obp: Box<[u8]>,
+}
+
+impl Default for ColorPalette {
+    fn default() -> Self {
+        Self {
+            bgpi: 0,
+            obpi: 0,
+            bgp: vec![0; 0x40].into_boxed_slice(),
+            obp: vec![0; 0x40].into_boxed_slice(),
+        }
+    }
+}
+
+impl ColorPalette {
+    pub fn bgp(&self, palette: usize) -> [Pixel; 4] {
+        [
+            Self::palette_color(&self.bgp, palette, 0),
+            Self::palette_color(&self.bgp, palette, 1),
+            Self::palette_color(&self.bgp, palette, 2),
+            Self::palette_color(&self.bgp, palette, 3),
+        ]
+    }
+
+    pub fn obp(&self, palette: usize) -> [Pixel; 4] {
+        [
+            Self::palette_color(&self.obp, palette, 0),
+            Self::palette_color(&self.obp, palette, 1),
+            Self::palette_color(&self.obp, palette, 2),
+            Self::palette_color(&self.obp, palette, 3),
+        ]
+    }
+
+    fn palette_color(pal_data: &[u8], palette: usize, color: usize) -> Pixel {
+        let palette_offset = 8 * palette;
+        let palette_data = &pal_data[palette_offset..palette_offset + 8];
+        let color_offset = color * 2;
+        let color = (palette_data[color_offset as usize] as u16)
+            | (palette_data[color_offset as usize + 1] as u16) << 8;
+        let r = (0xff * (color & 0x1f) / 0x1f) as Pixel;
+        let g = (0xff * ((color >> 5) & 0x1f) / 0x1f) as Pixel;
+        let b = (0xff * ((color >> 10) & 0x1f) / 0x1f) as Pixel;
+        (r << 16) | (g << 8) | b
+    }
+
+    fn write_color(pal_data: &mut [u8], mut idx: u8, data: u8) -> u8 {
+        pal_data[(idx & 0x3f) as usize] = data;
+        if idx & 0x80 != 0 {
+            idx += 1;
+            idx &= 0xbf;
+        }
+        idx
+    }
+}
+
+impl Device for ColorPalette {
+    fn read(&self, address: u16) -> Result<u8> {
+        device_match! {
+            address {
+                0xff68 => Ok(self.bgpi),
+                0xff69 => Ok(self.bgp[(self.bgpi & 0x3f) as usize]),
+                0xff6a => Ok(self.obpi),
+                0xff6b => Ok(self.obp[(self.obpi & 0x3f) as usize]),
+            }
+        }
+    }
+
+    fn write(&mut self, address: u16, data: u8) -> Result<()> {
+        device_match! {
+            address {
+                0xff68 => self.bgpi = data,
+                0xff69 => self.bgpi = Self::write_color(&mut self.bgp[..], self.bgpi, data),
+                0xff6a => self.obpi = data,
+                0xff6b => self.obpi = Self::write_color(&mut self.obp[..], self.obpi, data),
             }
         }
 

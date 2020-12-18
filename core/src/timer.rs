@@ -1,4 +1,4 @@
-use crate::{device::Device, error::Error, utils::ClockDecimate, Request, Update, CLOCK};
+use crate::{device::Device, error::Error, irq, utils::ClockDecimate, Update, CLOCK};
 use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -42,7 +42,7 @@ impl Timer {
 }
 
 impl Update for Timer {
-    fn update(&mut self, ticks: u64, request: &mut Request) {
+    fn update(&mut self, ticks: u64, flags: &mut irq::Flags) {
         // update the DIV clock
         let div = self.div_clock.update(ticks);
         self.div = self.div.wrapping_add(div as u8);
@@ -55,7 +55,7 @@ impl Update for Timer {
             if tima > 0xff {
                 self.tima = self.tma;
 
-                request.timer = true;
+                flags.set(irq::Flags::TIMER, true);
             } else {
                 self.tima = tima as _;
             }
@@ -101,12 +101,12 @@ impl Device for Timer {
 #[cfg(test)]
 mod test {
     use super::Timer;
-    use crate::{cartridge::NoCartridge, device::Device, Emulator, Request, Update};
+    use crate::{cartridge::NoCartridge, device::Device, irq, Emulator, Update};
 
     #[test]
     fn timer_interrupt() {
         let mut timer = Timer::default();
-        let mut request = Request::default();
+        let mut flags = irq::Flags::default();
 
         let mut states = Vec::new();
 
@@ -114,17 +114,17 @@ mod test {
         timer.write(0xff07, 0b0000_0100).unwrap();
         timer.write(0xff05, 0xfe).unwrap();
 
-        timer.update(4, &mut request);
-        states.push(request.timer); // false
+        timer.update(4, &mut flags);
+        states.push(flags.contains(irq::Flags::TIMER)); // false
 
-        timer.update(4, &mut request);
-        states.push(request.timer); // false (tima = 0xff)
+        timer.update(4, &mut flags);
+        states.push(flags.contains(irq::Flags::TIMER)); // false (tima = 0xff)
 
-        timer.update(4, &mut request);
-        states.push(request.timer); // false
+        timer.update(4, &mut flags);
+        states.push(flags.contains(irq::Flags::TIMER)); // false
 
-        timer.update(4, &mut request);
-        states.push(request.timer); // true
+        timer.update(4, &mut flags);
+        states.push(flags.contains(irq::Flags::TIMER)); // true
 
         assert_eq!(vec![false, false, false, true], states);
     }

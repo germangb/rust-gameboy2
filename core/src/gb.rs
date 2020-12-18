@@ -1,6 +1,6 @@
 use crate::{
-    cartridge::Cartridge, cpu::CPU, device::Device, error::Error, lcd::Display, Button, Emulator,
-    Request,
+    cartridge::Cartridge, cpu::CPU, device::Device, error::Error, irq, lcd::Display, Button,
+    Emulator,
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -54,10 +54,7 @@ impl<C: Cartridge> GameBoy<C> {
 
     pub fn press(&mut self, button: &Button) -> Result<(), Error> {
         self.emulator.joypad.press(button);
-        self.emulator.update_irq(&Request {
-            joypad: true,
-            ..Default::default()
-        })?;
+        self.emulator.irq.fi |= irq::Flags::JOYPAD;
         Ok(())
     }
 

@@ -26,6 +26,10 @@ pub struct LCDC {
 }
 
 impl LCDC {
+    pub fn bits(&self) -> u8 {
+        self.flags.bits
+    }
+
     pub fn lcd_on(&self) -> bool {
         self.flags.contains(Flags::LCD_ENABLE)
     }

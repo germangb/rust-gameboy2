@@ -1,4 +1,4 @@
-use crate::{device::Device, error::Error, Request, Update};
+use crate::{device::Device, error::Error, irq, Update};
 use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -24,7 +24,7 @@ impl DMA {
 }
 
 impl Update for DMA {
-    fn update(&mut self, ticks: u64, _: &mut Request) {
+    fn update(&mut self, ticks: u64, _: &mut irq::Flags) {
         if self.clocks >= ticks {
             self.clocks -= ticks;
         } else {

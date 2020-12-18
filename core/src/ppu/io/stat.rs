@@ -1,4 +1,4 @@
-use crate::{device::Device, error::Error, Request};
+use crate::{device::Device, error::Error, irq};
 use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -64,7 +64,7 @@ impl STAT {
         self.stat |= unsafe { std::mem::transmute::<_, u8>(mode) }
     }
 
-    fn search(&mut self, request: &mut Request) {
+    fn search(&mut self) {
         if self.dots > SEARCH_DOTS {
             self.dots %= SEARCH_DOTS;
         } else {
@@ -74,7 +74,7 @@ impl STAT {
         self.set_mode(Mode::PIXELS);
     }
 
-    fn pixels(&mut self, request: &mut Request) {
+    fn pixels(&mut self, flags: &mut irq::Flags) {
         if self.dots > PIXELS_DOTS {
             self.dots %= PIXELS_DOTS;
         } else {
@@ -85,12 +85,12 @@ impl STAT {
         self.ly += 1;
 
         if self.hblank_int() {
-            request.stat = true;
+            flags.set(irq::Flags::LCD_STAT, true);
         }
         self.set_mode(Mode::HBLANK);
     }
 
-    fn hblank(&mut self, request: &mut Request) {
+    fn hblank(&mut self, flags: &mut irq::Flags) {
         if self.dots > HBLANK_DOTS {
             self.dots %= HBLANK_DOTS;
         } else {
@@ -102,19 +102,19 @@ impl STAT {
 
         if self.ly == 144 {
             if self.vblank_int() {
-                request.stat = true;
+                flags.set(irq::Flags::LCD_STAT, true);
             }
-            request.vblank = true;
+            flags.set(irq::Flags::VBLANK, true);
             self.set_mode(Mode::VBLANK);
         } else {
             if self.oam_int() {
-                request.stat = true;
+                flags.set(irq::Flags::LCD_STAT, true);
             }
             self.set_mode(Mode::SEARCH);
         }
     }
 
-    fn vblank(&mut self, request: &mut Request) {
+    fn vblank(&mut self, flags: &mut irq::Flags) {
         if self.dots > VBLANK_DOTS / 10 {
             self.dots %= VBLANK_DOTS / 10;
         } else {
@@ -126,7 +126,7 @@ impl STAT {
 
         if self.ly == 154 {
             if self.oam_int() {
-                request.stat = true;
+                flags.set(irq::Flags::LCD_STAT, true);
             }
             self.ly = 0;
             self.set_mode(Mode::SEARCH);
@@ -141,7 +141,7 @@ impl STAT {
         }
     }
 
-    pub fn update(&mut self, ticks: u64, request: &mut Request) -> bool {
+    pub fn update(&mut self, ticks: u64, flags: &mut irq::Flags) -> bool {
         self.dots += ticks;
 
         // ly previous to update
@@ -149,16 +149,16 @@ impl STAT {
         let mode = self.mode();
 
         match self.mode() {
-            Mode::SEARCH => self.search(request),
-            Mode::PIXELS => self.pixels(request),
-            Mode::HBLANK => self.hblank(request),
-            Mode::VBLANK => self.vblank(request),
+            Mode::SEARCH => self.search(),
+            Mode::PIXELS => self.pixels(flags),
+            Mode::HBLANK => self.hblank(flags),
+            Mode::VBLANK => self.vblank(flags),
         }
 
         self.update_lyc_flag();
 
         if self.lyc_int() && self.ly == self.lyc && self.ly != ly {
-            request.stat = true;
+            flags.set(irq::Flags::LCD_STAT, true);
         }
 
         // transition PIXELS -> HBLANK triggers draw of new scanline

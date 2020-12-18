@@ -72,6 +72,7 @@ fn read_rom(path: &Path) -> Result<Vec<u8>, Error> {
 fn run(app: &App, cartridge: impl Cartridge) {
     let mut opts = WindowOptions::default();
     opts.scale = app.window_scale();
+    opts.borderless = true;
     let mut window = Window::new(&app.window_title(), 160, 144, opts).unwrap();
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
@@ -169,7 +170,7 @@ fn main() -> Result<(), Error> {
             0xfc => {
                 info!("Cartridge type: PoketCamera ({:02X}h)", kind);
 
-                let sensor = CameraSensor;
+                let sensor = CameraSensor::new();
 
                 run(&app, PoketCamera::new(sensor));
             }

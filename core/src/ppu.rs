@@ -1,13 +1,14 @@
 use crate::{
     device::Device,
     error::Error,
+    irq,
     ppu::{
         io::{lcdc::LCDC, stat::STAT, Palette, Scroll, Window},
         lcd::{Display, DisplaySerde, Pixel},
         oam::{Entry, Flags, OAM},
     },
     ram::VideoRAM,
-    Request, Update,
+    Update,
 };
 use log::{info, warn};
 #[cfg(feature = "serde")]
@@ -87,7 +88,7 @@ impl PPU {
                 "OBP0={:08b} OBP1={:08b} BGP={:08b}",
                 self.palette.obp0, self.palette.obp1, self.palette.bgp
             ),
-            format!("LCDC={:08b}", self.lcdc.read(0xff40).unwrap()),
+            format!("LCDC={:08b}", self.lcdc.bits()),
             format!(
                 "STAT={:08b} LY={} LYC={}",
                 self.stat.stat(),
@@ -249,10 +250,10 @@ fn decode_tile_data_offset(index: u8, data_select: u16) -> u16 {
 }
 
 impl Update for PPU {
-    fn update(&mut self, ticks: u64, request: &mut Request) {
+    fn update(&mut self, ticks: u64, flags: &mut irq::Flags) {
         let line = self.stat.ly();
 
-        if self.stat.update(ticks, request) {
+        if self.stat.update(ticks, flags) {
             self.draw_scanline(line).unwrap();
         }
     }

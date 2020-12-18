@@ -58,17 +58,8 @@ mod utils;
 
 const CLOCK: u64 = 4_194_304;
 
-#[derive(Default)]
-pub struct Request {
-    pub vblank: bool,
-    pub stat: bool,
-    pub joypad: bool,
-    pub serial: bool,
-    pub timer: bool,
-}
-
 trait Update {
-    fn update(&mut self, ticks: u64, request: &mut Request);
+    fn update(&mut self, ticks: u64, flags: &mut irq::Flags);
 }
 
 #[derive(Default, Debug, Clone, Eq, PartialEq)]
@@ -116,14 +107,14 @@ impl<C: Cartridge> Emulator<C> {
         let mut cpu = self.cpu.take().unwrap();
         let ticks = cpu.update(self)?;
         self.cpu = Some(cpu);
-        let mut request = Request::default();
+        let mut flags = irq::Flags::default();
 
-        self.oam_dma.update(ticks, &mut request);
-        self.ppu.update(ticks, &mut request);
-        self.timer.update(ticks, &mut request);
+        self.oam_dma.update(ticks, &mut flags);
+        self.ppu.update(ticks, &mut flags);
+        self.timer.update(ticks, &mut flags);
 
         // request IF register with requested interrupts.
-        self.update_irq(&request)?;
+        self.irq.fi |= flags;
         Ok(())
     }
 
@@ -223,39 +214,6 @@ impl<C: Cartridge> Emulator<C> {
         }
     }
 
-    fn update_irq(&mut self, request: &Request) -> Result<(), Error> {
-        let mut fi = self.read(0xff0f)?;
-
-        if request.vblank {
-            //info!("Request VBLANK interrupt");
-
-            fi |= 0b0000_0001
-        }
-        if request.stat {
-            //info!("Request LCDC interrupt");
-
-            fi |= 0b0000_0010
-        }
-        if request.timer {
-            //info!("Request TIMER interrupt");
-
-            fi |= 0b0000_0100
-        }
-        if request.serial {
-            //info!("Request SERIAL interrupt");
-
-            fi |= 0b0000_1000
-        }
-        if request.joypad {
-            //info!("Request JOYPAD interrupt");
-
-            fi |= 0b0001_0000
-        }
-
-        self.write(0xff0f, fi)?;
-        Ok(())
-    }
-
     fn oam_dma_transfer(&mut self) -> Result<(), Error> {
         let src = self.oam_dma.start_address();
 
@@ -337,56 +295,6 @@ impl<C: Cartridge> Device for Emulator<C> {
 
 #[cfg(test)]
 mod test {
-    use crate::{cartridge::NoCartridge, device::Device, Emulator, Request};
-
-    #[test]
-    fn update_irq() {
-        let mut emu = Emulator::new(NoCartridge);
-        let mut fi = Vec::new();
-
-        fi.push(emu.read(0xff0f).unwrap());
-
-        emu.update_irq(&Request {
-            vblank: true,
-            ..Default::default()
-        })
-        .unwrap();
-        fi.push(emu.read(0xff0f).unwrap());
-
-        emu.update_irq(&Request {
-            stat: true,
-            ..Default::default()
-        })
-        .unwrap();
-        fi.push(emu.read(0xff0f).unwrap());
-
-        emu.update_irq(&Request {
-            timer: true,
-            ..Default::default()
-        })
-        .unwrap();
-        fi.push(emu.read(0xff0f).unwrap());
-
-        emu.update_irq(&Request {
-            serial: true,
-            ..Default::default()
-        })
-        .unwrap();
-        fi.push(emu.read(0xff0f).unwrap());
-
-        emu.update_irq(&Request {
-            joypad: true,
-            ..Default::default()
-        })
-        .unwrap();
-        fi.push(emu.read(0xff0f).unwrap());
-
-        assert_eq!(
-            vec![0b00000, 0b00001, 0b00011, 0b00111, 0b01111, 0b11111],
-            fi
-        );
-    }
-
     #[test]
     fn oam_dma() {
         todo!();

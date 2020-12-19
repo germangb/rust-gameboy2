@@ -88,6 +88,7 @@ struct Emulator<C> {
     high_ram: HighRAM,
     irq: IRQ,
     apu: APU,
+    double_speed: bool,
 }
 
 impl<C> Emulator<C> {
@@ -105,6 +106,7 @@ impl<C> Emulator<C> {
             high_ram: Default::default(),
             irq: Default::default(),
             apu: Default::default(),
+            double_speed: false,
         }
     }
 }
@@ -116,7 +118,12 @@ impl<C: Cartridge> Emulator<C> {
 
     fn update(&mut self) -> Result<()> {
         let mut cpu = self.cpu.take().unwrap();
-        let ticks = cpu.update(self)?;
+        let mut ticks = cpu.update(self)?;
+
+        if self.double_speed {
+            ticks /= 2;
+        }
+
         self.cpu = Some(cpu);
         let mut flags = irq::Flags::default();
 
@@ -159,6 +166,7 @@ impl<C: Cartridge> Emulator<C> {
             0xff40..=0xff45 => self.ppu.read(address),
             0xff46 => self.dma.read(address),
             0xff47..=0xff4b => self.ppu.read(address),
+            0xff4d => Ok(self.read_double_speed()),
             0xff4f => self.ppu.read(address),
             0xff50 => self.boot.read(address),
             0xff51..=0xff54 => self.hdma.read(address),
@@ -196,6 +204,10 @@ impl<C: Cartridge> Emulator<C> {
                 Ok(())
             }
             0xff47..=0xff4b => self.ppu.write(address, data),
+            0xff4d => {
+                self.write_double_speed(data);
+                Ok(())
+            }
             0xff4f => self.ppu.write(address, data),
             0xff50 => self.boot.write(address, data),
             0xff51..=0xff54 => self.hdma.write(address, data),
@@ -241,6 +253,20 @@ impl<C: Cartridge> Emulator<C> {
         }
 
         Ok(())
+    }
+
+    fn read_double_speed(&self) -> u8 {
+        if self.double_speed {
+            0b10000000
+        } else {
+            0
+        }
+    }
+
+    fn write_double_speed(&mut self, data: u8) {
+        if (data & 1) != 0 {
+            self.double_speed = true;
+        }
     }
 }
 

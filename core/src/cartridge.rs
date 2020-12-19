@@ -14,6 +14,7 @@ pub mod mbc3;
 pub mod mbc5;
 
 fn ram_banks(banks: u8) -> usize {
+    return 32;
     match banks {
         0x00 => 0,
         0x01 | 0x02 => 1,

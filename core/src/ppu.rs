@@ -218,8 +218,11 @@ impl PPU {
     // decode bg and window pixel
     fn decode_bg_win(&self, row: u16, col: u16, map: u16) -> Pixel {
         // tile pixel
-        let mut pixel_row = row % 8;
-        let mut pixel_col = 7 - col % 8;
+        let pixel_row = row % 8;
+        let pixel_col = 7 - col % 8;
+        // transformed tile pixel
+        let mut tile_pixel_row = pixel_row;
+        let mut tile_pixel_col = pixel_col;
         // tile index
         let tile_index_address = map + 32 * (row / 8) + (col / 8);
         let tile_index = self.video_ram.data(0, tile_index_address);
@@ -228,31 +231,38 @@ impl PPU {
         let tile_attributes = self.video_ram.attributes(tile_index_address);
         #[cfg(feature = "cgb")]
         if tile_attributes.contains(Attributes::HORIZONTAL_FLIP) {
-            pixel_col = 7 - pixel_col;
+            tile_pixel_col = 7 - tile_pixel_col;
         }
         #[cfg(feature = "cgb")]
         if tile_attributes.contains(Attributes::VERTICAL_FLIP) {
-            pixel_row = 7 - pixel_row;
+            tile_pixel_row = 7 - tile_pixel_row;
         }
 
         let palette = self.palette.bgp();
         let bank = 0;
-
         #[cfg(feature = "cgb")]
         let palette = self.color_palette.bgp(tile_attributes.palette());
         #[cfg(feature = "cgb")]
         let bank = tile_attributes.bank();
 
-        self.decode_tile(
-            pixel_row,
-            pixel_col,
-            tile_index,
-            bank,
-            self.lcdc.bg_window_data_select(),
-            palette,
-            false,
-        )
-        .unwrap()
+        let mut color = self
+            .decode_tile(
+                tile_pixel_row,
+                tile_pixel_col,
+                tile_index,
+                bank,
+                self.lcdc.bg_window_data_select(),
+                palette,
+                false,
+            )
+            .unwrap();
+
+        #[cfg(feature = "debug")]
+        if self.debug_overlays && (pixel_row == 0 || pixel_col == 0) {
+            color = debug::mix(color, 0x000000, 0.25);
+        }
+
+        color
     }
 
     // decode tile pixel color (None if reansparent)

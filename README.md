@@ -11,8 +11,9 @@ Attempt to rewrite the former [`germangb/rust-gameboy`] emulator project.
 ![](assets/camera.png)
 ![](assets/doraemon.png)
 
-![](assets/zelda_cgb.png)
 ![](assets/gold_cgb.png)
+![](assets/simpsons.png)
+![](assets/zelda_cgb.png)
 
 ## Integration tests
 

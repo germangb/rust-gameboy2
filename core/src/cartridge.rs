@@ -1,4 +1,5 @@
 use crate::device::{Device, Result};
+use log::warn;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -81,7 +82,7 @@ impl Device for ROM {
     fn write(&mut self, address: u16, data: u8) -> Result<()> {
         device_match! {
             address {
-                0x0000..=0x7fff => panic!("[WRITE] ROM address."),
+                0x0000..=0x7fff => warn!("[WRITE] ROM address."),
                 0xa000..=0xbfff => self.ram[address as usize - 0xa000] = data,
             }
         }

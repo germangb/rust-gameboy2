@@ -6,7 +6,7 @@ use crate::{
         lcd::{Display, DisplaySerde, Pixel},
         oam::{Entry, Flags, OAM},
     },
-    ram::VideoRAM,
+    ram::{Attributes, VideoRAM},
     Update,
 };
 use log::{info, warn};
@@ -42,7 +42,8 @@ impl PPU {
     }
 
     fn clear_display(&mut self) {
-        self.display.iter_mut().for_each(|p| *p = lcd::PALETTE[0]);
+        //self.display.iter_mut().for_each(|p| *p = lcd::PALETTE[0]);
+        self.display.iter_mut().for_each(|p| *p = 0xffffff);
     }
 
     #[cfg(not(feature = "debug"))]
@@ -109,7 +110,7 @@ impl PPU {
     }
 
     // render the given line to the display buffer
-    fn draw_scanline(&mut self, ly: u8) -> Result<()> {
+    fn draw_scanline(&mut self, ly: u8) {
         let display_offset = lcd::WIDTH * (ly as usize);
         let Scroll { scy, scx } = self.scroll;
         let Window { wy, wx } = self.window;
@@ -126,7 +127,7 @@ impl PPU {
                     let row = (ly - wy) as u16;
                     let col = (dot - wx) as u16;
 
-                    let mut color = self.decode_bg_win(row, col, self.lcdc.window_map_select())?;
+                    let mut color = self.decode_bg_win(row, col, self.lcdc.window_map_select());
 
                     #[cfg(feature = "debug")]
                     if self.debug_overlays {
@@ -135,23 +136,29 @@ impl PPU {
 
                     color
                 } else {
-                    self.decode_bg_win(row, col, self.lcdc.bg_map_select())?
+                    self.decode_bg_win(row, col, self.lcdc.bg_map_select())
                 }
             } else {
-                self.decode_bg_win(row, col, self.lcdc.bg_map_select())?
+                self.decode_bg_win(row, col, self.lcdc.bg_map_select())
             };
 
             self.display[display_offset + dot as usize] = color;
         }
 
         if !self.lcdc.obj_enable() {
-            return Ok(());
+            return;
         }
 
         let ly = ly as i16;
 
         for i in 0..40 {
-            let Entry { y, x, tile, flags } = self.oam.table()[i];
+            let Entry {
+                y,
+                x,
+                tile_index,
+                flags,
+            } = self.oam.table()[i];
+
             let y = (y as i16) - 16;
             let x = (x as i16) - 8;
             let size = if self.lcdc.obj_size() { 16 } else { 8 };
@@ -167,11 +174,13 @@ impl PPU {
                         col = 7 - col;
                     }
 
-                    let pal = if flags.contains(Flags::PAL_NUMBER) {
-                        self.palette.obp1
+                    let palette = if flags.contains(Flags::PAL_NUMBER) {
+                        self.palette.obp1()
                     } else {
-                        self.palette.obp0
+                        self.palette.obp0()
                     };
+                    let palette = self.color_palette.obp(flags.palette());
+                    let bank = flags.bank();
 
                     let offset = display_offset + dot as usize;
 
@@ -179,7 +188,9 @@ impl PPU {
                         || self.display[offset] == lcd::PALETTE[0]
                     {
                         let mut color = self
-                            .decode_tile(row as u16, col as u16, tile, 0x8000, pal, true)?
+                            .decode_tile(
+                                row as u16, col as u16, tile_index, bank, 0x8000, palette, true,
+                            )
                             .unwrap_or(self.display[offset]);
 
                         #[cfg(feature = "debug")]
@@ -196,29 +207,40 @@ impl PPU {
                 }
             }
         }
-
-        Ok(())
     }
 
     // decode bg and window pixel
-    fn decode_bg_win(&self, row: u16, col: u16, map: u16) -> Result<Pixel> {
+    fn decode_bg_win(&self, row: u16, col: u16, map: u16) -> Pixel {
         // tile pixel
-        let prow = row % 8;
-        let pcol = 7 - col % 8;
+        let mut prow = row % 8;
+        let mut pcol = 7 - col % 8;
         // tile index
         let tile_index_address = map + 32 * (row / 8) + (col / 8);
-        let tile_index = self.read(tile_index_address)?;
+        let tile_index = self.video_ram.data(0, tile_index_address);
+        let tile_attributes = self.video_ram.attributes(tile_index_address);
 
-        Ok(self
-            .decode_tile(
-                prow,
-                pcol,
-                tile_index,
-                self.lcdc.bg_window_data_select(),
-                self.palette.bgp,
-                false,
-            )?
-            .unwrap())
+        if tile_attributes.contains(Attributes::HORIZONTAL_FLIP) {
+            pcol = 7 - pcol;
+        }
+
+        if tile_attributes.contains(Attributes::VERTICAL_FLIP) {
+            prow = 7 - prow;
+        }
+
+        let palette = self.palette.bgp();
+        let palette = self.color_palette.bgp(tile_attributes.palette());
+        let bank = tile_attributes.bank();
+
+        self.decode_tile(
+            prow,
+            pcol,
+            tile_index,
+            bank,
+            self.lcdc.bg_window_data_select(),
+            palette,
+            false,
+        )
+        .unwrap()
     }
 
     // decode tile pixel color (None if reansparent)
@@ -226,23 +248,23 @@ impl PPU {
         &self,
         prow: u16,
         pcol: u16,
-        index: u8,
+        tile_index: u8,
+        bank: usize,
         data_select: u16,
-        pal: u8,
+        palette: [Pixel; 4],
         opacity: bool,
-    ) -> Result<Option<Pixel>> {
+    ) -> Option<Pixel> {
         // tile data (each row takes 2 bytes so a full 8x8 tile consists of 16 bytes)
-        let tile_data_offset = decode_tile_data_offset(index, data_select);
+        let tile_data_offset = decode_tile_data_offset(tile_index, data_select);
         let data_address = data_select + tile_data_offset * 16 + (prow * 2);
-        let tile_data_lo = (self.read(data_address)? >> pcol) & 1;
-        let tile_data_hi = (self.read(data_address + 1)? >> pcol) & 1;
+        let tile_data_lo = (self.video_ram.data(bank, data_address) >> pcol) & 1;
+        let tile_data_hi = (self.video_ram.data(bank, data_address + 1) >> pcol) & 1;
         // decode color
         let pal_index = (tile_data_hi << 1) | tile_data_lo;
         if opacity && pal_index == 0 {
-            return Ok(None);
+            return None;
         }
-        let color_index = (pal >> (2 * pal_index)) & 0b11;
-        Ok(Some(lcd::PALETTE[color_index as usize]))
+        Some(palette[pal_index as usize])
     }
 }
 
@@ -261,7 +283,7 @@ impl Update for PPU {
         let line = self.stat.ly();
 
         if self.stat.update(ticks, flags) {
-            self.draw_scanline(line).unwrap();
+            self.draw_scanline(line);
         }
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
     device::{Device, Result},
-    ppu::lcd::Pixel,
+    ppu::{lcd, lcd::Pixel},
 };
 use log::info;
 #[cfg(feature = "serde")]
@@ -89,6 +89,29 @@ pub struct Palette {
     pub bgp: u8,
     pub obp0: u8,
     pub obp1: u8,
+}
+
+impl Palette {
+    pub fn bgp(&self) -> [Pixel; 4] {
+        Self::palette(self.bgp)
+    }
+
+    pub fn obp0(&self) -> [Pixel; 4] {
+        Self::palette(self.obp0)
+    }
+
+    pub fn obp1(&self) -> [Pixel; 4] {
+        Self::palette(self.obp1)
+    }
+
+    pub fn palette(pal: u8) -> [Pixel; 4] {
+        [
+            lcd::PALETTE[(pal & 0b11) as usize],
+            lcd::PALETTE[((pal >> 2) & 0b11) as usize],
+            lcd::PALETTE[((pal >> 4) & 0b11) as usize],
+            lcd::PALETTE[((pal >> 6) & 0b11) as usize],
+        ]
+    }
 }
 
 fn log_pal(pal: u8) -> String {

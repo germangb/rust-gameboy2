@@ -19,6 +19,14 @@ impl Attributes {
     pub fn palette(&self) -> usize {
         (self.bits & 0b111) as _
     }
+
+    pub fn bank(&self) -> usize {
+        if self.contains(Attributes::TILE_VRAM_BANK) {
+            1
+        } else {
+            0
+        }
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -39,6 +47,15 @@ impl Default for VideoRAM {
 }
 
 impl VideoRAM {
+    pub fn data(&self, bank: usize, address: u16) -> u8 {
+        let offset = 0x2000 * bank;
+        self.data[offset + (address as usize) - 0x8000]
+    }
+
+    pub fn attributes(&self, address: u16) -> Attributes {
+        Attributes::from_bits(self.data(1, address)).unwrap()
+    }
+
     fn bank_address(&self, address: u16) -> usize {
         self.bank * 0x2000 + (address as usize) - 0x8000
     }
@@ -93,7 +110,23 @@ mod test {
 
     #[test]
     fn video_ram_bank() {
-        todo!()
+        let mut emu = Emulator::new(NoCartridge);
+        let mut states = Vec::new();
+
+        emu.write(0x8000, 0xa).unwrap();
+        emu.write(0x9fff, 0xb).unwrap();
+        emu.write(0xff4f, 1).unwrap();
+        emu.write(0x8000, 0xc).unwrap();
+        emu.write(0x9fff, 0xd).unwrap();
+        emu.write(0xff4f, 0).unwrap();
+
+        states.push(emu.read(0x8000).unwrap());
+        states.push(emu.read(0x9fff).unwrap());
+        emu.write(0xff4f, 1).unwrap();
+        states.push(emu.read(0x8000).unwrap());
+        states.push(emu.read(0x9fff).unwrap());
+
+        assert_eq!(vec![0xa, 0xb, 0xc, 0xd], states)
     }
 
     #[test]

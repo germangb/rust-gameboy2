@@ -11,14 +11,22 @@ bitflags! {
         const Y_FLIP             = 0b01000000;
         const X_FLIP             = 0b00100000;
         const PAL_NUMBER         = 0b00010000;
-        const CBG_VRAM_BANK      = 0b00001000;
-        const CBG_PAL_NUMBER     = 0b00000111;
+        const CGB_VRAM_BANK      = 0b00001000;
+        const CGB_PAL_NUMBER     = 0b00000111;
     }
 }
 
 impl Flags {
     pub fn palette(&self) -> usize {
         (self.bits & 0b111) as _
+    }
+
+    pub fn bank(&self) -> usize {
+        if self.contains(Flags::CGB_VRAM_BANK) {
+            1
+        } else {
+            0
+        }
     }
 }
 
@@ -28,7 +36,7 @@ impl Flags {
 pub struct Entry {
     pub y: u8,
     pub x: u8,
-    pub tile: u8,
+    pub tile_index: u8,
     pub flags: Flags,
 }
 
@@ -61,7 +69,7 @@ impl Device for OAM {
             let data = match offset % 4 {
                 0 => self.table[index].y,
                 1 => self.table[index].x,
-                2 => self.table[index].tile,
+                2 => self.table[index].tile_index,
                 3 => self.table[index].flags.bits,
                 _ => unreachable!(),
             };
@@ -80,7 +88,7 @@ impl Device for OAM {
             match offset % 4 {
                 0 => self.table[index].y = data,
                 1 => self.table[index].x = data,
-                2 => self.table[index].tile = data,
+                2 => self.table[index].tile_index = data,
                 3 => self.table[index].flags = Flags::from_bits(data).unwrap(),
                 _ => unreachable!(),
             }

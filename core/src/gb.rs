@@ -94,6 +94,9 @@ impl<C: Cartridge> GameBoy<C> {
         cpu.registers_mut().set_hl(0x014d);
         cpu.registers_mut().sp = 0xfffe;
         cpu.registers_mut().pc = 0x0100;
+
+        // cgb
+        cpu.registers_mut().a = 0x11;
     }
 
     fn boot_memory(&mut self) -> Result<()> {

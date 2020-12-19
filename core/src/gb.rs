@@ -56,10 +56,9 @@ impl<C: Cartridge> GameBoy<C> {
         self.emulator.cpu.as_mut().unwrap()
     }
 
-    pub fn press(&mut self, button: &Button) -> Result<()> {
+    pub fn press(&mut self, button: &Button) {
         self.emulator.joypad.press(button);
         self.emulator.irq.fi |= irq::Flags::JOYPAD;
-        Ok(())
     }
 
     pub fn release(&mut self, button: &Button) {

@@ -129,7 +129,7 @@ fn run(app: &App, cartridge: impl Cartridge) {
 
 fn handle_key(window: &Window, gb: &mut GameBoy<impl Cartridge>, key: Key, button: Button) {
     if window.is_key_pressed(key, KeyRepeat::No) {
-        gb.press(&button).unwrap();
+        gb.press(&button);
     }
     if window.is_key_released(key) {
         gb.release(&button);

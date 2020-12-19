@@ -63,19 +63,48 @@ mod test {
         let mut emu = Emulator::new(NoCartridge);
 
         emu.write(0xc000, 1).unwrap();
-        emu.write(0xcfff, 2).unwrap();
+        emu.write(0xdfff, 2).unwrap();
 
         assert_eq!(
             [1, 2],
             [
                 emu.work_ram.read(0xc000).unwrap(),
-                emu.work_ram.read(0xcfff).unwrap()
+                emu.work_ram.read(0xdfff).unwrap()
             ]
         );
     }
 
     #[test]
     fn work_ram_bank() {
-        todo!()
+        let mut emu = Emulator::new(NoCartridge);
+        let mut states = Vec::new();
+
+        emu.write(0xc000, 0x1).unwrap();
+        emu.write(0xcfff, 0x2).unwrap();
+
+        emu.write(0xff70, 1).unwrap();
+        emu.write(0xd000, 0xa).unwrap();
+        emu.write(0xdfff, 0xb).unwrap();
+        emu.write(0xff70, 2).unwrap();
+        emu.write(0xd000, 0xc).unwrap();
+        emu.write(0xdfff, 0xd).unwrap();
+        emu.write(0xff70, 3).unwrap();
+        emu.write(0xd000, 0xe).unwrap();
+        emu.write(0xdfff, 0xf).unwrap();
+
+        emu.write(0xff70, 0).unwrap();
+        states.push(emu.read(0xd000).unwrap());
+        states.push(emu.read(0xdfff).unwrap());
+        emu.write(0xff70, 1).unwrap();
+        states.push(emu.read(0xd000).unwrap());
+        states.push(emu.read(0xdfff).unwrap());
+        emu.write(0xff70, 2).unwrap();
+        states.push(emu.read(0xd000).unwrap());
+        states.push(emu.read(0xdfff).unwrap());
+        emu.write(0xff70, 3).unwrap();
+        states.push(emu.read(0xd000).unwrap());
+        states.push(emu.read(0xdfff).unwrap());
+
+        assert_eq!(vec![0xa, 0xb, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf], states)
     }
 }

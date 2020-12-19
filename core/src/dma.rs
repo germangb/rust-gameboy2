@@ -61,6 +61,38 @@ impl Device for DMA {
     }
 }
 
+#[derive(Default, Debug, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct HDMA {
+    pub hdma1: u8,
+    pub hdma2: u8,
+    pub hdma3: u8,
+    pub hdma4: u8,
+}
+
+impl Device for HDMA {
+    fn read(&self, address: u16) -> Result<u8> {
+        device_match! {
+            address {
+                0xff51..=0xff54 => Ok(0xff),
+            }
+        }
+    }
+
+    fn write(&mut self, address: u16, data: u8) -> Result<()> {
+        device_match! {
+            address {
+                0xff51 => self.hdma1 = data,
+                0xff52 => self.hdma2 = data,
+                0xff53 => self.hdma3 = data,
+                0xff54 => self.hdma4 = data,
+            }
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::DMA;
@@ -71,24 +103,24 @@ mod test {
         let mut emu = Emulator::new(NoCartridge);
         emu.write(0xff46, 0xab).unwrap();
 
-        assert_eq!(0xab00, emu.oam_dma.start_address());
+        assert_eq!(0xab00, emu.dma.start_address());
     }
 
     #[test]
     fn oam_dma_time() {
         let mut emu = Emulator::new(NoCartridge);
-        let mut states = vec![emu.oam_dma.is_active()];
+        let mut states = vec![emu.dma.is_active()];
 
         emu.write(0xff46, 0xab).unwrap();
-        states.push(emu.oam_dma.is_active());
+        states.push(emu.dma.is_active());
 
         for _ in 0..160 - 4 {
-            emu.oam_dma.update(1, &mut Default::default());
+            emu.dma.update(1, &mut Default::default());
         }
 
-        states.push(emu.oam_dma.is_active());
-        emu.oam_dma.update(4, &mut Default::default());
-        states.push(emu.oam_dma.is_active());
+        states.push(emu.dma.is_active());
+        emu.dma.update(4, &mut Default::default());
+        states.push(emu.dma.is_active());
 
         assert_eq!(vec![false, true, true, false], states);
     }

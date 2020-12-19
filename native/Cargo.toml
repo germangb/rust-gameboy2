@@ -8,6 +8,7 @@ edition = "2018"
 
 [features]
 default = ["camera"]
+cgb = ["core/cgb"]
 
 [dependencies]
 core = { path = "../core", features = ["debug"] }

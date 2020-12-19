@@ -66,7 +66,7 @@ impl Device for Joypad {
                     let data = match self.select {
                         Select::Button => (self.matrix & 0xf) | 0b0010_0000,
                         Select::Direction => (self.matrix >> 4) | 0b0001_0000,
-                        Select::Undefined => unreachable!(),
+                        Select::Undefined => 0,
                     };
 
                     // we're swapping the meaning of 0 and 1 internally

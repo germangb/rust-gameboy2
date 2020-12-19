@@ -230,6 +230,9 @@ impl<C: Cartridge> Device for Emulator<C> {
 
         device_match! {
             address {
+                #[cfg(not(feature = "cgb"))]
+                0x0000..=0x00ff if boot => self.boot.read(address),
+                #[cfg(feature = "cgb")]
                 0x0000..=0x00ff | 0x0150..=0x0900 if boot => self.boot.read(address),
                 0x0000..=0x7fff => self.cartridge.read(address),
                 0x8000..=0x9fff => self.ppu.read(address),
@@ -263,6 +266,9 @@ impl<C: Cartridge> Device for Emulator<C> {
 
         device_match! {
             address {
+                #[cfg(not(feature = "cgb"))]
+                0x0000..=0x00ff if boot => self.boot.write(address, data),
+                #[cfg(feature = "cgb")]
                 0x0000..=0x00ff | 0x0150..=0x0900 if boot => self.boot.write(address, data),
                 0x0000..=0x7fff => self.cartridge.write(address, data),
                 0x8000..=0x9fff => self.ppu.write(address, data),

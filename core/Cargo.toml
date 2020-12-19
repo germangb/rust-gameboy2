@@ -10,6 +10,7 @@ edition = "2018"
 default = ["serde", "boot"]
 boot = []
 debug = ["palette", "embedded-graphics", "embedded-picofont"]
+cgb = []
 
 [dependencies]
 log = "0.4.11"

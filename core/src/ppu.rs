@@ -42,7 +42,9 @@ impl PPU {
     }
 
     fn clear_display(&mut self) {
-        //self.display.iter_mut().for_each(|p| *p = lcd::PALETTE[0]);
+        #[cfg(not(feature = "cgb"))]
+        self.display.iter_mut().for_each(|p| *p = lcd::PALETTE[0]);
+        #[cfg(feature = "cgb")]
         self.display.iter_mut().for_each(|p| *p = 0xffffff);
     }
 
@@ -174,16 +176,20 @@ impl PPU {
                         col = 7 - col;
                     }
 
+                    #[cfg(not(feature = "cgb"))]
+                    let bank = 0;
+                    #[cfg(not(feature = "cgb"))]
                     let palette = if flags.contains(Flags::PAL_NUMBER) {
                         self.palette.obp1()
                     } else {
                         self.palette.obp0()
                     };
+                    #[cfg(feature = "cgb")]
                     let palette = self.color_palette.obp(flags.palette());
+                    #[cfg(feature = "cgb")]
                     let bank = flags.bank();
 
                     let offset = display_offset + dot as usize;
-
                     if !flags.contains(Flags::OBJ_TO_BG_PRIORITY)
                         || self.display[offset] == lcd::PALETTE[0]
                     {
@@ -212,28 +218,34 @@ impl PPU {
     // decode bg and window pixel
     fn decode_bg_win(&self, row: u16, col: u16, map: u16) -> Pixel {
         // tile pixel
-        let mut prow = row % 8;
-        let mut pcol = 7 - col % 8;
+        let mut pixel_row = row % 8;
+        let mut pixel_col = 7 - col % 8;
         // tile index
         let tile_index_address = map + 32 * (row / 8) + (col / 8);
         let tile_index = self.video_ram.data(0, tile_index_address);
+
+        #[cfg(feature = "cgb")]
         let tile_attributes = self.video_ram.attributes(tile_index_address);
-
+        #[cfg(feature = "cgb")]
         if tile_attributes.contains(Attributes::HORIZONTAL_FLIP) {
-            pcol = 7 - pcol;
+            pixel_col = 7 - pixel_col;
         }
-
+        #[cfg(feature = "cgb")]
         if tile_attributes.contains(Attributes::VERTICAL_FLIP) {
-            prow = 7 - prow;
+            pixel_row = 7 - pixel_row;
         }
 
         let palette = self.palette.bgp();
+        let bank = 0;
+
+        #[cfg(feature = "cgb")]
         let palette = self.color_palette.bgp(tile_attributes.palette());
+        #[cfg(feature = "cgb")]
         let bank = tile_attributes.bank();
 
         self.decode_tile(
-            prow,
-            pcol,
+            pixel_row,
+            pixel_col,
             tile_index,
             bank,
             self.lcdc.bg_window_data_select(),
@@ -246,8 +258,8 @@ impl PPU {
     // decode tile pixel color (None if reansparent)
     fn decode_tile(
         &self,
-        prow: u16,
-        pcol: u16,
+        pixel_row: u16,
+        pixel_col: u16,
         tile_index: u8,
         bank: usize,
         data_select: u16,
@@ -256,9 +268,9 @@ impl PPU {
     ) -> Option<Pixel> {
         // tile data (each row takes 2 bytes so a full 8x8 tile consists of 16 bytes)
         let tile_data_offset = decode_tile_data_offset(tile_index, data_select);
-        let data_address = data_select + tile_data_offset * 16 + (prow * 2);
-        let tile_data_lo = (self.video_ram.data(bank, data_address) >> pcol) & 1;
-        let tile_data_hi = (self.video_ram.data(bank, data_address + 1) >> pcol) & 1;
+        let data_address = data_select + tile_data_offset * 16 + (pixel_row * 2);
+        let tile_data_lo = (self.video_ram.data(bank, data_address) >> pixel_col) & 1;
+        let tile_data_hi = (self.video_ram.data(bank, data_address + 1) >> pixel_col) & 1;
         // decode color
         let pal_index = (tile_data_hi << 1) | tile_data_lo;
         if opacity && pal_index == 0 {

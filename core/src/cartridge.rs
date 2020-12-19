@@ -6,10 +6,12 @@ use serde::{Deserialize, Serialize};
 // re-exports
 pub use mbc1::MBC1;
 pub use mbc3::MBC3;
+pub use mbc5::MBC5;
 
 pub mod mbc1;
 pub mod mbc2;
 pub mod mbc3;
+pub mod mbc5;
 
 fn ram_banks(banks: u8) -> usize {
     match banks {

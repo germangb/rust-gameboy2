@@ -55,6 +55,10 @@ impl Default for OAM {
 }
 
 impl OAM {
+    pub fn sort_by_x(&mut self) {
+        self.table.sort_by_key(|e| e.x);
+    }
+
     pub fn table(&self) -> &[Entry] {
         &self.table[..]
     }

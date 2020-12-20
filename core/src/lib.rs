@@ -120,12 +120,12 @@ impl<C: Cartridge> Emulator<C> {
         let mut cpu = self.cpu.take().unwrap();
         let mut ticks = cpu.update(self)?;
 
+        self.cpu = Some(cpu);
+        let mut flags = irq::Flags::default();
+
         if self.double_speed {
             ticks /= 2;
         }
-
-        self.cpu = Some(cpu);
-        let mut flags = irq::Flags::default();
 
         self.dma.update(ticks, &mut flags);
         self.ppu.update(ticks, &mut flags);

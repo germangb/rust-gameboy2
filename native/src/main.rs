@@ -1,7 +1,7 @@
 use crate::camera_sensor::CameraSensor;
 use camera::PoketCamera;
 use core::{
-    cartridge::{mbc3::MBC3, Cartridge, NoCartridge, MBC1, MBC5, ROM},
+    cartridge::{Cartridge, NoCartridge, MBC1, MBC3, MBC5, ROM},
     Button, GameBoy,
 };
 use log::{error, info, warn, LevelFilter};

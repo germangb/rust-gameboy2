@@ -6,7 +6,7 @@ Attempt to rewrite the former [`germangb/rust-gameboy`] emulator project.
 
 [`germangb/rust-gameboy`]: https://github.com/germangb/rust-gameboy
 
-![](assets/zelda.png)
+![](assets/ferris.png)
 ![](assets/batman.png)
 ![](assets/camera.png)
 ![](assets/doraemon.png)

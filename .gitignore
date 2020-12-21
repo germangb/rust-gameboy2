@@ -7,3 +7,7 @@ Cargo.lock
 # roms
 *.gb
 *.gbc
+
+# npm
+node_modules
+dist

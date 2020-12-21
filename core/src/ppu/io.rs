@@ -198,10 +198,10 @@ impl ColorPalette {
         let color_offset = color * 2;
         let color = (palette_data[color_offset as usize] as u16)
             | (palette_data[color_offset as usize + 1] as u16) << 8;
-        let r = (0xff * (color & 0x1f) / 0x1f) as Color;
-        let g = (0xff * ((color >> 5) & 0x1f) / 0x1f) as Color;
-        let b = (0xff * ((color >> 10) & 0x1f) / 0x1f) as Color;
-        (r << 16) | (g << 8) | b
+        let r = (0xff * (color & 0x1f) / 0x1f) as u8;
+        let g = (0xff * ((color >> 5) & 0x1f) / 0x1f) as u8;
+        let b = (0xff * ((color >> 10) & 0x1f) / 0x1f) as u8;
+        lcd::color(r, g, b)
     }
 
     fn write_color(pal_data: &mut [u8], mut idx: u8, data: u8) -> u8 {

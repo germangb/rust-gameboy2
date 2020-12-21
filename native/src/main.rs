@@ -121,9 +121,10 @@ fn run(app: &App, cartridge: impl Cartridge) {
             }
         }
 
-        window
-            .update_with_buffer(&gb.display()[..], 160, 144)
-            .unwrap();
+        let data =
+            unsafe { std::slice::from_raw_parts(gb.display().as_ptr() as *const u32, 160 * 144) };
+
+        window.update_with_buffer(data, 160, 144).unwrap();
     }
 }
 

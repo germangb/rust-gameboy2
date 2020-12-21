@@ -49,7 +49,7 @@ impl PPU {
         #[cfg(not(feature = "cgb"))]
         let color = lcd::PALETTE[0];
         #[cfg(feature = "cgb")]
-        let color = 0xffffff;
+        let color = lcd::color(0xff, 0xff, 0xff);
         self.back.iter_mut().for_each(|p| *p = color);
         self.swap_buffers();
     }
@@ -165,7 +165,7 @@ impl PPU {
 
                     #[cfg(feature = "debug")]
                     if self.debug_overlays {
-                        color = debug::mix(color, 0x00ffff, 0.5);
+                        color = debug::mix(color, lcd::color(0x00, 0xff, 0xff), 0.5);
                     }
 
                     (color, color_id)
@@ -333,13 +333,13 @@ impl PPU {
             color_id = 4;
             #[cfg(feature = "debug")]
             if self.debug_overlays {
-                color = debug::mix(color, 0xffff00, 0.25);
+                color = debug::mix(color, lcd::color(0xff, 0xff, 0x00), 0.25);
             }
         }
 
         #[cfg(feature = "debug")]
         if self.debug_overlays && (pixel_row == 0 || pixel_col == 0) {
-            color = debug::mix(color, 0x000000, 0.25);
+            color = debug::mix(color, lcd::color(0x00, 0x00, 0x00), 0.25);
         }
 
         (color, color_id)

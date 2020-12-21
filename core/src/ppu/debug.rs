@@ -1,13 +1,21 @@
 use crate::ppu::lcd;
+use cfg_if::cfg_if;
 use embedded_graphics::{drawable, pixelcolor::Rgb888, prelude::*, DrawTarget};
 use palette::{
     encoding::{Linear, Srgb},
     Mix,
 };
 
-// debug drawing of sprites
-pub(crate) const DEBUG_OBJ: lcd::Color = 0xff0000;
-pub(crate) const DEBUG_OBJ_DOUBLE: lcd::Color = 0x0000ff;
+cfg_if! {
+    if #[cfg(feature = "rgba")] {
+        pub(crate) const DEBUG_OBJ: lcd::Color = [0xff, 0x00, 0x00, 0xff];
+        pub(crate) const DEBUG_OBJ_DOUBLE: lcd::Color = [0x00, 0x00, 0xff, 0xff];
+    } else {
+        // argb
+        pub(crate) const DEBUG_OBJ: lcd::Color = [0xff, 0xff, 0x00, 0x00];
+        pub(crate) const DEBUG_OBJ_DOUBLE: lcd::Color = [0xff, 0x00, 0x00, 0xff];
+    }
+}
 
 type Rgb = palette::rgb::Rgb<Linear<Srgb>, f64>;
 
@@ -16,17 +24,18 @@ pub fn mix(left: lcd::Color, right: lcd::Color, t: f64) -> lcd::Color {
 }
 
 fn to_rgb(color: lcd::Color) -> Rgb {
-    let r = ((color >> 16) & 0xff) as f64 / 255.0;
-    let g = ((color >> 8) & 0xff) as f64 / 255.0;
-    let b = (color & 0xff) as f64 / 255.0;
+    let r = lcd::r(&color) as f64 / 255.0;
+    let g = lcd::g(&color) as f64 / 255.0;
+    let b = lcd::b(&color) as f64 / 255.0;
     Rgb::new(r, g, b)
 }
 
 fn from_rgb(color: &Rgb) -> lcd::Color {
-    let r = ((color.red * 255.0) as lcd::Color) << 16;
-    let g = ((color.green * 255.0) as lcd::Color) << 8;
-    let b = (color.blue * 255.0) as lcd::Color;
-    r | g | b
+    lcd::color(
+        (color.red * 255.0) as u8,
+        (color.green * 255.0) as u8,
+        (color.blue * 255.0) as u8,
+    )
 }
 
 impl DrawTarget<Rgb888> for lcd::DisplayBuffer {
@@ -38,10 +47,7 @@ impl DrawTarget<Rgb888> for lcd::DisplayBuffer {
         let y = (point.y as usize) % lcd::HEIGHT;
         let x = (point.x as usize) % lcd::WIDTH;
 
-        let r = (color.r() as lcd::Color) << 16;
-        let g = (color.g() as lcd::Color) << 8;
-        let b = color.b() as lcd::Color;
-        self.0[lcd::WIDTH * y + x] = r | g | b;
+        self.0[lcd::WIDTH * y + x] = lcd::color(color.r(), color.g(), color.b());
 
         Ok(())
     }

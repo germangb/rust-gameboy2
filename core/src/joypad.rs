@@ -3,6 +3,8 @@ use log::{info, warn};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::mem;
+#[cfg(feature = "wasm-bindgen")]
+use wasm_bindgen::prelude::*;
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -15,6 +17,7 @@ enum Select {
 }
 
 #[repr(u8)]
+#[cfg_attr(feature = "wasm-bindgen", wasm_bindgen)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[rustfmt::skip]
 pub enum Button {

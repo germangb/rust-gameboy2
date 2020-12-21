@@ -1,7 +1,7 @@
 use crate::camera_sensor::CameraSensor;
 use camera::PoketCamera;
 use core::{
-    cartridge::{mbc3::MBC3, Cartridge, NoCartridge, MBC1, ROM},
+    cartridge::{Cartridge, NoCartridge, MBC1, MBC3, MBC5, ROM},
     Button, GameBoy,
 };
 use log::{error, info, warn, LevelFilter};
@@ -129,7 +129,7 @@ fn run(app: &App, cartridge: impl Cartridge) {
 
 fn handle_key(window: &Window, gb: &mut GameBoy<impl Cartridge>, key: Key, button: Button) {
     if window.is_key_pressed(key, KeyRepeat::No) {
-        gb.press(&button).unwrap();
+        gb.press(&button);
     }
     if window.is_key_released(key) {
         gb.release(&button);
@@ -168,6 +168,11 @@ fn main() -> Result<(), Error> {
                 info!("Cartridge type: MBC3 ({:02X}h)", kind);
 
                 run(&app, MBC3::new(data))
+            }
+            0x19 | 0x1a | 0x1b | 0x1c | 0x1d | 0x1e => {
+                info!("Cartridge type: MBC5 ({:02X}h)", kind);
+
+                run(&app, MBC5::new(data))
             }
             #[cfg(feature = "camera")]
             0xfc => {

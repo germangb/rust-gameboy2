@@ -85,7 +85,7 @@ impl STAT {
         }
 
         // increment line
-        self.ly += 1;
+        //self.ly += 1;
 
         if self.hblank_int() {
             flags.set(irq::Flags::LCD_STAT, true);
@@ -101,7 +101,7 @@ impl STAT {
         }
 
         // increment line
-        //self.ly += 1;
+        self.ly += 1;
 
         if self.ly == 144 {
             if self.vblank_int() {

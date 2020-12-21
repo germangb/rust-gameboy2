@@ -1,13 +1,16 @@
 use crate::{
     device::{Device, Result},
-    ppu::{lcd, lcd::Pixel},
+    ppu::{lcd, lcd::Color},
 };
 use log::info;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-pub mod lcdc;
-pub mod stat;
+mod lcdc;
+mod stat;
+
+pub use lcdc::LCDC;
+pub use stat::STAT;
 
 #[derive(Default, Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -92,19 +95,19 @@ pub struct Palette {
 }
 
 impl Palette {
-    pub fn bgp(&self) -> [Pixel; 4] {
+    pub fn bgp(&self) -> [Color; 4] {
         Self::palette(self.bgp)
     }
 
-    pub fn obp0(&self) -> [Pixel; 4] {
+    pub fn obp0(&self) -> [Color; 4] {
         Self::palette(self.obp0)
     }
 
-    pub fn obp1(&self) -> [Pixel; 4] {
+    pub fn obp1(&self) -> [Color; 4] {
         Self::palette(self.obp1)
     }
 
-    pub fn palette(pal: u8) -> [Pixel; 4] {
+    pub fn palette(pal: u8) -> [Color; 4] {
         [
             lcd::PALETTE[(pal & 0b11) as usize],
             lcd::PALETTE[((pal >> 2) & 0b11) as usize],
@@ -112,18 +115,6 @@ impl Palette {
             lcd::PALETTE[((pal >> 6) & 0b11) as usize],
         ]
     }
-}
-
-fn log_pal(pal: u8) -> String {
-    const S: [&str; 4] = ["░░", "▒▒", "▓▓", "██"];
-
-    format!(
-        "{}{}{}{}",
-        S[pal as usize & 0b11],
-        S[(pal as usize) >> 2 & 0b11],
-        S[(pal as usize) >> 4 & 0b11],
-        S[(pal as usize) >> 6 & 0b11],
-    )
 }
 
 impl Device for Palette {
@@ -141,17 +132,17 @@ impl Device for Palette {
         device_match! {
             address {
                 0xff47 => {
-                    info!("Register BGP: {:08b} ({})", data, log_pal(data));
+                    info!("Register BGP: {:08b}", data);
 
                     self.bgp = data
                 }
                 0xff48 => {
-                    info!("Register OBP0: {:08b} ({})", data, log_pal(data));
+                    info!("Register OBP0: {:08b}", data);
 
                     self.obp0 = data
                 }
                 0xff49 => {
-                    info!("Register OBP1: {:08b} ({})", data, log_pal(data));
+                    info!("Register OBP1: {:08b}", data);
 
                     self.obp1 = data
                 }
@@ -183,7 +174,7 @@ impl Default for ColorPalette {
 }
 
 impl ColorPalette {
-    pub fn bgp(&self, palette: usize) -> [Pixel; 4] {
+    pub fn bgp(&self, palette: usize) -> [Color; 4] {
         [
             Self::palette_color(&self.bgp, palette, 0),
             Self::palette_color(&self.bgp, palette, 1),
@@ -192,7 +183,7 @@ impl ColorPalette {
         ]
     }
 
-    pub fn obp(&self, palette: usize) -> [Pixel; 4] {
+    pub fn obp(&self, palette: usize) -> [Color; 4] {
         [
             Self::palette_color(&self.obp, palette, 0),
             Self::palette_color(&self.obp, palette, 1),
@@ -201,15 +192,15 @@ impl ColorPalette {
         ]
     }
 
-    fn palette_color(pal_data: &[u8], palette: usize, color: usize) -> Pixel {
+    fn palette_color(pal_data: &[u8], palette: usize, color: usize) -> Color {
         let palette_offset = 8 * palette;
         let palette_data = &pal_data[palette_offset..palette_offset + 8];
         let color_offset = color * 2;
         let color = (palette_data[color_offset as usize] as u16)
             | (palette_data[color_offset as usize + 1] as u16) << 8;
-        let r = (0xff * (color & 0x1f) / 0x1f) as Pixel;
-        let g = (0xff * ((color >> 5) & 0x1f) / 0x1f) as Pixel;
-        let b = (0xff * ((color >> 10) & 0x1f) / 0x1f) as Pixel;
+        let r = (0xff * (color & 0x1f) / 0x1f) as Color;
+        let g = (0xff * ((color >> 5) & 0x1f) / 0x1f) as Color;
+        let b = (0xff * ((color >> 10) & 0x1f) / 0x1f) as Color;
         (r << 16) | (g << 8) | b
     }
 
@@ -300,5 +291,10 @@ mod test {
                 emu.ppu.palette.read(0xff49).unwrap(),
             ]
         );
+    }
+
+    #[test]
+    fn color_palette() {
+        todo!()
     }
 }

@@ -88,6 +88,7 @@ impl Device for MBC3 {
                         self.mode = Mode::Rtc;
                         self.rtc_select = (data as usize) - 0x08
                     }
+                    _ => {},
                     _ => panic!(),
                 },
                 0x6000..=0x7fff => {}

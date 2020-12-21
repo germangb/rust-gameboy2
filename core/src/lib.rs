@@ -45,6 +45,7 @@ use log::{info, warn};
 use serde::{Deserialize, Serialize};
 
 // re-exports
+use crate::dma::HDMA;
 pub use gb::GameBoy;
 pub use joypad::Button;
 pub use ppu::lcd;
@@ -62,7 +63,7 @@ mod joypad;
 mod ppu;
 mod ram;
 mod timer;
-pub mod utils;
+mod utils;
 
 const CLOCK: u64 = 4_194_304;
 
@@ -78,7 +79,8 @@ struct Emulator<C> {
     cpu: Option<CPU>,
     cartridge: C,
     boot: Boot,
-    oam_dma: DMA,
+    dma: DMA,
+    hdma: HDMA,
     joypad: Joypad,
     ppu: PPU,
     timer: Timer,
@@ -86,6 +88,7 @@ struct Emulator<C> {
     high_ram: HighRAM,
     irq: IRQ,
     apu: APU,
+    double_speed: bool,
 }
 
 impl<C> Emulator<C> {
@@ -94,7 +97,8 @@ impl<C> Emulator<C> {
             cpu: Some(Default::default()),
             cartridge,
             boot: Default::default(),
-            oam_dma: Default::default(),
+            dma: Default::default(),
+            hdma: Default::default(),
             joypad: Default::default(),
             ppu: Default::default(),
             timer: Default::default(),
@@ -102,6 +106,7 @@ impl<C> Emulator<C> {
             high_ram: Default::default(),
             irq: Default::default(),
             apu: Default::default(),
+            double_speed: false,
         }
     }
 }
@@ -113,11 +118,16 @@ impl<C: Cartridge> Emulator<C> {
 
     fn update(&mut self) -> Result<()> {
         let mut cpu = self.cpu.take().unwrap();
-        let ticks = cpu.update(self)?;
+        let mut ticks = cpu.update(self)?;
+
         self.cpu = Some(cpu);
         let mut flags = irq::Flags::default();
 
-        self.oam_dma.update(ticks, &mut flags);
+        if self.double_speed {
+            ticks /= 2;
+        }
+
+        self.dma.update(ticks, &mut flags);
         self.ppu.update(ticks, &mut flags);
         self.timer.update(ticks, &mut flags);
 
@@ -154,14 +164,13 @@ impl<C: Cartridge> Emulator<C> {
             0xff10..=0xff26 => self.apu.read(address),
             0xff30..=0xff3f => self.apu.read(address),
             0xff40..=0xff45 => self.ppu.read(address),
-            0xff46 => self.oam_dma.read(address),
+            0xff46 => self.dma.read(address),
             0xff47..=0xff4b => self.ppu.read(address),
+            0xff4d => Ok(self.read_double_speed()),
             0xff4f => self.ppu.read(address),
             0xff50 => self.boot.read(address),
-            0xff51..=0xff55 => {
-                warn!("Game Boy color (HDMA)");
-                Ok(0)
-            }
+            0xff51..=0xff54 => self.hdma.read(address),
+            0xff55 => Ok(0xff),
             0xff68..=0xff6b => self.ppu.read(address),
             0xff70 => self.work_ram.read(address),
             _ => {
@@ -184,23 +193,25 @@ impl<C: Cartridge> Emulator<C> {
             0xff30..=0xff3f => self.apu.write(address, data),
             0xff40..=0xff45 => self.ppu.write(address, data),
             0xff46 => {
-                self.oam_dma.write(address, data)?;
+                self.dma.write(address, data)?;
 
                 // do the OAM transfer all at once, then the emulator will block certain
                 // locations in memory until the corresponding number of cycles has elapsed.
-                if self.oam_dma.is_active() {
-                    self.oam_dma_transfer()?;
+                if self.dma.is_active() {
+                    self.dma()?;
                 }
 
                 Ok(())
             }
             0xff47..=0xff4b => self.ppu.write(address, data),
-            0xff4f => self.ppu.write(address, data),
-            0xff50 => self.boot.write(address, data),
-            0xff51..=0xff55 => {
-                warn!("Game Boy color (HDMA)");
+            0xff4d => {
+                self.write_double_speed(data);
                 Ok(())
             }
+            0xff4f => self.ppu.write(address, data),
+            0xff50 => self.boot.write(address, data),
+            0xff51..=0xff54 => self.hdma.write(address, data),
+            0xff55 => self.hdma(data),
             0xff68..=0xff6b => self.ppu.write(address, data),
             0xff70 => self.work_ram.write(address, data),
             _ => {
@@ -210,8 +221,8 @@ impl<C: Cartridge> Emulator<C> {
         }
     }
 
-    fn oam_dma_transfer(&mut self) -> Result<()> {
-        let src = self.oam_dma.start_address();
+    fn dma(&mut self) -> Result<()> {
+        let src = self.dma.start_address();
 
         let src = src..=src | 0x9f;
         let dst = 0xfe00..0xfe9f;
@@ -222,6 +233,41 @@ impl<C: Cartridge> Emulator<C> {
         }
         Ok(())
     }
+
+    fn hdma(&mut self, hdma5: u8) -> Result<()> {
+        let hdma1 = self.hdma.hdma1 as u16;
+        let hdma2 = self.hdma.hdma2 as u16;
+        let hdma3 = self.hdma.hdma3 as u16;
+        let hdma4 = self.hdma.hdma4 as u16;
+        let hdma5 = hdma5 as u16;
+
+        let source = (hdma1 << 8) | (hdma2 & 0xf0);
+        let destination = 0x8000 | ((hdma3 & 0x1f) << 8) | (hdma4 & 0xf0);
+        let len = ((hdma5 & 0x7f) + 1) * 16;
+
+        let src = source..source + len;
+        let dst = destination..destination + len;
+        for (src, dst) in src.zip(dst) {
+            let data = self.read(src)?;
+            self.write(dst, data)?;
+        }
+
+        Ok(())
+    }
+
+    fn read_double_speed(&self) -> u8 {
+        if self.double_speed {
+            0b10000000
+        } else {
+            0
+        }
+    }
+
+    fn write_double_speed(&mut self, data: u8) {
+        if (data & 1) != 0 {
+            self.double_speed = true;
+        }
+    }
 }
 
 impl<C: Cartridge> Device for Emulator<C> {
@@ -230,6 +276,9 @@ impl<C: Cartridge> Device for Emulator<C> {
 
         device_match! {
             address {
+                #[cfg(not(feature = "cgb"))]
+                0x0000..=0x00ff if boot => self.boot.read(address),
+                #[cfg(feature = "cgb")]
                 0x0000..=0x00ff | 0x0150..=0x0900 if boot => self.boot.read(address),
                 0x0000..=0x7fff => self.cartridge.read(address),
                 0x8000..=0x9fff => self.ppu.read(address),
@@ -263,6 +312,9 @@ impl<C: Cartridge> Device for Emulator<C> {
 
         device_match! {
             address {
+                #[cfg(not(feature = "cgb"))]
+                0x0000..=0x00ff if boot => self.boot.write(address, data),
+                #[cfg(feature = "cgb")]
                 0x0000..=0x00ff | 0x0150..=0x0900 if boot => self.boot.write(address, data),
                 0x0000..=0x7fff => self.cartridge.write(address, data),
                 0x8000..=0x9fff => self.ppu.write(address, data),

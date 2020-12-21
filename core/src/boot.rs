@@ -3,10 +3,10 @@ use log::{error, info};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "boot")]
-const DMG: &[u8] = include_bytes!("../boot/dmg_boot.bin");
-#[cfg(feature = "boot")]
-const CGB: &[u8] = include_bytes!("../boot/cgb_boot.bin");
+#[cfg(all(feature = "boot", not(feature = "cgb")))]
+const ROM: &[u8] = include_bytes!("../boot/dmg_boot.bin");
+#[cfg(all(feature = "boot", feature = "cgb"))]
+const ROM: &[u8] = include_bytes!("../boot/cgb_boot.bin");
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -30,17 +30,18 @@ impl Device for Boot {
     fn read(&self, address: u16) -> Result<u8> {
         device_match! {
             address {
-                #[cfg(dmg)]
+                #[cfg(not(feature = "cgb"))]
                 0x0000..=0x00ff if self.enabled => {
                     if cfg!(feature = "boot") {
-                        Ok(DMG[address as usize])
+                        Ok(ROM[address as usize])
                     } else {
                         panic!("Emulator must be build with the \"boot\" feature flag in order to run the boot sequence");
                     }
                 }
+                #[cfg(feature = "cgb")]
                 0x0000..=0x00ff | 0x0150..=0x0900 if self.enabled => {
                     if cfg!(feature = "boot") {
-                        Ok(CGB[address as usize])
+                        Ok(ROM[address as usize])
                     } else {
                         panic!("Emulator must be build with the \"boot\" feature flag in order to run the boot sequence");
                     }
@@ -55,7 +56,9 @@ impl Device for Boot {
     fn write(&mut self, address: u16, data: u8) -> Result<()> {
         device_match! {
             address {
+                #[cfg(not(feature = "cgb"))]
                 0x0000..=0x00ff => panic!("BOOT section disabled"),
+                #[cfg(feature = "cgb")]
                 0x0000..=0x00ff | 0x0150..=0x0900 => panic!("BOOT section disabled"),
                 0xff50 => {
                     if self.enabled && data != 0 {
@@ -74,7 +77,7 @@ impl Device for Boot {
 #[cfg(test)]
 mod test {
     use crate::{
-        boot::{Boot, DMG},
+        boot::{Boot, ROM},
         device::Device,
     };
 
@@ -89,7 +92,7 @@ mod test {
         }
 
         assert_eq!(
-            Ok(DMG.to_vec()),
+            Ok(ROM.to_vec()),
             read.into_iter().collect::<Result<Vec<u8>, _>>()
         )
     }

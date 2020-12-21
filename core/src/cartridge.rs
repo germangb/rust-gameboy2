@@ -4,14 +4,18 @@ use log::warn;
 use serde::{Deserialize, Serialize};
 
 // re-exports
-pub use mbc1::MBC1;
-pub use mbc3::MBC3;
+pub use mbc1::*;
+pub use mbc3::*;
+pub use mbc5::*;
 
-pub mod mbc1;
-pub mod mbc2;
-pub mod mbc3;
+mod mbc1;
+mod mbc2;
+mod mbc3;
+mod mbc5;
 
 fn ram_banks(banks: u8) -> usize {
+    // FIXME
+    return 16;
     match banks {
         0x00 => 0,
         0x01 | 0x02 => 1,

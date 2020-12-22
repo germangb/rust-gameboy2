@@ -28,6 +28,17 @@ cargo test --test mem_timing
 ![](assets/instr_timing.png)
 ![](assets/mem_timing.png)
 
+## WASM
+
+```bash
+cd wasm/           # wasm module project
+wasm-pack build    # build wasm module
+cd www/            # web server directory 
+npm run start      # start server on port 8080
+```
+
+![](assets/wasm.png)
+
 ## References
 
 - http://problemkaputt.de/pandocs.htm

@@ -66,6 +66,8 @@ impl CPU {
     }
 
     fn int_v<D: Device>(&mut self, v: u16, device: &mut D) -> Result<()> {
+        info!("INTERRUPT Vector: {:02x}", v);
+
         self.stack_push(self.registers.pc, device)?;
         self.registers.pc = v;
         Ok(())
@@ -865,7 +867,10 @@ impl CPU {
                 device.write(0xff00 + a8, self.registers.a)?;
             }
             0xf0 => {
+                info!("0xf0");
                 let a8 = self.fetch(device)? as u16;
+                info!("a0: {:02x}", a8);
+                info!("data: {:02x}", device.read(0xff00 + a8)?);
                 self.registers.a = device.read(0xff00 + a8)?;
             }
 

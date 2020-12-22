@@ -128,8 +128,8 @@ impl<C: Cartridge> Emulator<C> {
         }
 
         self.dma.update(ticks, &mut flags);
-        self.ppu.update(ticks, &mut flags);
         self.timer.update(ticks, &mut flags);
+        self.ppu.update(ticks, &mut flags);
 
         // request IF register with requested interrupts.
         self.irq.fi |= flags;
@@ -156,7 +156,8 @@ impl<C: Cartridge> Emulator<C> {
         match address {
             0xff00 => self.joypad.read(address),
             0xff01..=0xff02 => {
-                warn!("Port/Mode not implemented {:04x}", address);
+                warn!("[READ] Port/Mode not implemented ({:04x})", address);
+
                 Ok(0)
             }
             0xff04..=0xff07 => self.timer.read(address),
@@ -166,10 +167,11 @@ impl<C: Cartridge> Emulator<C> {
             0xff40..=0xff45 => self.ppu.read(address),
             0xff46 => self.dma.read(address),
             0xff47..=0xff4b => self.ppu.read(address),
-            0xff4d => Ok(self.read_double_speed()),
+            0xff4d => self.read_double_speed(),
             0xff4f => self.ppu.read(address),
             0xff50 => self.boot.read(address),
             0xff51..=0xff54 => self.hdma.read(address),
+            // TODO Emulate OAM timings
             0xff55 => Ok(0xff),
             0xff68..=0xff6b => self.ppu.read(address),
             0xff70 => self.work_ram.read(address),
@@ -184,7 +186,11 @@ impl<C: Cartridge> Emulator<C> {
         match address {
             0xff00 => self.joypad.write(address, data),
             0xff01..=0xff02 => {
-                warn!("Port/Mode not implemented: {:04x}, {:02x}", address, data);
+                warn!(
+                    "[WRITE] Port/Mode not implemented ({:04x}), data: {:02x}",
+                    address, data
+                );
+
                 Ok(())
             }
             0xff04..=0xff07 => self.timer.write(address, data),
@@ -195,8 +201,7 @@ impl<C: Cartridge> Emulator<C> {
             0xff46 => {
                 self.dma.write(address, data)?;
 
-                // do the OAM transfer all at once, then the emulator will block certain
-                // locations in memory until the corresponding number of cycles has elapsed.
+                // TODO emulate OAM timings
                 if self.dma.is_active() {
                     self.dma()?;
                 }
@@ -211,11 +216,13 @@ impl<C: Cartridge> Emulator<C> {
             0xff4f => self.ppu.write(address, data),
             0xff50 => self.boot.write(address, data),
             0xff51..=0xff54 => self.hdma.write(address, data),
+            // TODO emulate HDMA timings
             0xff55 => self.hdma(data),
             0xff68..=0xff6b => self.ppu.write(address, data),
             0xff70 => self.work_ram.write(address, data),
             _ => {
                 warn!("Unknown IO address: {:04x}, data: {:02x}", address, data);
+
                 Ok(())
             }
         }
@@ -255,11 +262,11 @@ impl<C: Cartridge> Emulator<C> {
         Ok(())
     }
 
-    fn read_double_speed(&self) -> u8 {
+    fn read_double_speed(&self) -> Result<u8> {
         if self.double_speed {
-            0b10000000
+            Ok(0b10000000)
         } else {
-            0
+            Ok(0)
         }
     }
 
@@ -320,9 +327,9 @@ impl<C: Cartridge> Device for Emulator<C> {
                 0x8000..=0x9fff => self.ppu.write(address, data),
                 0xa000..=0xbfff => self.cartridge.write(address, data),
                 0xc000..=0xdfff => self.work_ram.write(address, data),
-                // Nintendo says use of this area is prohibited.
                 0xe000..=0xfdff => {
                     warn!("Nintendo says use of this area is prohibited (Echo RAM).");
+
                     Ok(())
                 }
                 0xfe00..=0xfe9f => self.ppu.write(address, data),

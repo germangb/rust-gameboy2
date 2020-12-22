@@ -7,7 +7,7 @@ use log::{info, warn};
 use serde::{Deserialize, Serialize};
 
 const SEARCH_DOTS: u64 = 80; // 80 dots (19 us)
-const PIXELS_DOTS: u64 = 230; // 168 to 291 cycles (40 to 60 us) depending on sprite count
+const PIXELS_DOTS: u64 = 291; // 168 to 291 cycles (40 to 60 us) depending on sprite count
 const HBLANK_DOTS: u64 = 376 - PIXELS_DOTS; // 85 to 208 dots (20 to 49 us) depending on previous mode 3 duration
 const VBLANK_DOTS: u64 = 4560; // 4560 dots (1087 us, 10 scanlines)
 

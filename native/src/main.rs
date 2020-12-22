@@ -143,9 +143,9 @@ fn main() -> Result<(), Error> {
     if app.verbose {
         pretty_env_logger::formatted_timed_builder()
             //.filter(Some("core"), LevelFilter::Trace)
-            //.filter(Some("core::cpu"), LevelFilter::Off)
-            //.filter(Some("core::cartridge"), LevelFilter::Off)
-            .filter(Some("core::ppu"), LevelFilter::Warn)
+            .filter(Some("core::cpu"), LevelFilter::Trace)
+            .filter(Some("core::cartridge::mbc3"), LevelFilter::Trace)
+            //.filter(Some("core::ppu"), LevelFilter::Warn)
             .filter(Some(module_path!()), LevelFilter::Trace)
             .init();
     }

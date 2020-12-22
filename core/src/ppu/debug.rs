@@ -1,21 +1,12 @@
 use crate::ppu::lcd;
-use cfg_if::cfg_if;
 use embedded_graphics::{drawable, pixelcolor::Rgb888, prelude::*, DrawTarget};
 use palette::{
     encoding::{Linear, Srgb},
     Mix,
 };
 
-cfg_if! {
-    if #[cfg(feature = "rgba")] {
-        pub(crate) const DEBUG_OBJ: lcd::Color = [0xff, 0x00, 0x00, 0xff];
-        pub(crate) const DEBUG_OBJ_DOUBLE: lcd::Color = [0x00, 0x00, 0xff, 0xff];
-    } else {
-        // argb
-        pub(crate) const DEBUG_OBJ: lcd::Color = [0xff, 0xff, 0x00, 0x00];
-        pub(crate) const DEBUG_OBJ_DOUBLE: lcd::Color = [0xff, 0x00, 0x00, 0xff];
-    }
-}
+pub(crate) const DEBUG_OBJ: lcd::Color = lcd::color(0xff, 0x00, 0x00);
+pub(crate) const DEBUG_OBJ_DOUBLE: lcd::Color = lcd::color(0x00, 0x00, 0xff);
 
 type Rgb = palette::rgb::Rgb<Linear<Srgb>, f64>;
 

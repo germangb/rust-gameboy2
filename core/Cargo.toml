@@ -7,11 +7,18 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["serde", "boot"]
+default = ["serde", "boot", "mbc1", "mbc2", "mbc3", "mbc5"]
 boot    = []
 debug   = ["palette", "embedded-graphics", "embedded-picofont"]
 cgb     = []
-rgba    = []
+rgba    = [] # rgba pixel format
+bgra    = [] # argb pixel format (little endian u32)
+
+# cartridge types
+mbc1    = []
+mbc2    = []
+mbc3    = []
+mbc5    = []
 
 [dependencies]
 log = "0.4.11"

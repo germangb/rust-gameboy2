@@ -78,7 +78,11 @@ impl Device for MBC3 {
         device_match! {
             address {
                 0x0000..=0x1fff => self.ram_timer_enabled = (data & 0xf) == 0xa,
-                0x2000..=0x3fff => self.rom_bank = data as usize,
+                0x2000..=0x3fff => {
+                    self.rom_bank = data as usize;
+
+                    info!("Selected ROM bank: {}", self.rom_bank);
+                },
                 0x4000..=0x5fff => match data {
                     0x00..=0x03 => {
                         self.mode = Mode::Ram;
@@ -88,7 +92,6 @@ impl Device for MBC3 {
                         self.mode = Mode::Rtc;
                         self.rtc_select = (data as usize) - 0x08
                     }
-                    _ => {},
                     _ => panic!(),
                 },
                 0x6000..=0x7fff => {}

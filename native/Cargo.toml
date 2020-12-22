@@ -11,7 +11,7 @@ default = ["camera"]
 cgb = ["core/cgb"]
 
 [dependencies]
-core = { path = "../core", features = ["debug"] }
+core = { path = "../core", features = ["debug", "cgb"] }
 camera = { path = "../camera", optional = true }
 pretty_env_logger = "0.4.0"
 structopt = "0.3"

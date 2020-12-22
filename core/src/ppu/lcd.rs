@@ -1,5 +1,4 @@
 use crate::ppu::lcd;
-use cfg_if::cfg_if;
 use educe::Educe;
 
 pub const PALETTE: [Color; 4] = [
@@ -15,24 +14,33 @@ pub const HEIGHT: usize = 144;
 pub type Color = [u8; 4];
 pub type Display = [Color; WIDTH * HEIGHT];
 
-cfg_if! {
+cfg_if::cfg_if! {
     if #[cfg(feature = "rgba")] {
         pub(crate) fn r(color: &Color) -> u8 { color[0] }
         pub(crate) fn g(color: &Color) -> u8 { color[1] }
         pub(crate) fn b(color: &Color) -> u8 { color[2] }
+
+        pub(crate) const fn color(r: u8, g: u8, b: u8) -> Color {
+            return [r, g, b, 0xff];
+        }
+    } else if #[cfg(feature = "bgra")] {
+        pub(crate) fn r(color: &Color) -> u8 { color[2] }
+        pub(crate) fn g(color: &Color) -> u8 { color[1] }
+        pub(crate) fn b(color: &Color) -> u8 { color[0] }
+
+        pub(crate) const fn color(r: u8, g: u8, b: u8) -> Color {
+            return [b, g, r, 0xff];
+        }
     } else {
         // argb
-        pub(crate) fn r(color: &Color) -> u8 { color[1] }
-        pub(crate) fn g(color: &Color) -> u8 { color[2] }
-        pub(crate) fn b(color: &Color) -> u8 { color[3] }
-    }
-}
+        pub(crate) fn r(color: &Color) -> u8 { color[2] }
+        pub(crate) fn g(color: &Color) -> u8 { color[1] }
+        pub(crate) fn b(color: &Color) -> u8 { color[0] }
 
-pub(crate) const fn color(r: u8, g: u8, b: u8) -> Color {
-    #[cfg(feature = "rgba")]
-    return [r, g, b, 0xff];
-    #[cfg(not(feature = "rgba"))]
-    return [0xff, r, g, b];
+        pub(crate) const fn color(r: u8, g: u8, b: u8) -> Color {
+            return [0xff, r, g, b];
+        }
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Educe)]

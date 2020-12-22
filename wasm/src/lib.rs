@@ -1,4 +1,4 @@
-use core::cartridge::{NoCartridge, MBC5};
+use core::cartridge::{NoCartridge, MBC3, MBC5};
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
 
@@ -21,8 +21,10 @@ pub fn set_panic_hook() {
 #[wasm_bindgen]
 impl GameBoy {
     pub fn new() -> Self {
-        let cartridge = MBC5::new(include_bytes!("../../roms/zelda_dx.gbc").to_vec());
-        let inner = core::GameBoy::new(cartridge).unwrap();
+        let inner = core::GameBoy::new(MBC5::new(
+            include_bytes!("../../roms/Shantae (USA).gbc").to_vec(),
+        ))
+        .unwrap();
         Self { inner }
     }
 
@@ -32,7 +34,6 @@ impl GameBoy {
 
     pub fn update_frame(&mut self, ctx: &CanvasRenderingContext2d) {
         self.inner.update_frame().unwrap();
-
         let clamped = wasm_bindgen::Clamped(unsafe {
             std::slice::from_raw_parts_mut(self.inner.display().as_ptr() as *mut u8, 144 * 160 * 4)
         });
@@ -40,8 +41,6 @@ impl GameBoy {
             .expect("Error creating image data");
         ctx.put_image_data(&image_data, 0.0, 0.0)
             .expect("Error writing image to canvas");
-
-        //ctx.fill_rect(10.0, 10.0, 150.0, 100.0);
     }
 
     pub fn press(&mut self, button: Button) {

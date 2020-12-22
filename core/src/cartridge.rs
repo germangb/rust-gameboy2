@@ -4,18 +4,23 @@ use log::warn;
 use serde::{Deserialize, Serialize};
 
 // re-exports
+#[cfg(feature = "mbc1")]
 pub use mbc1::*;
+#[cfg(feature = "mbc3")]
 pub use mbc3::*;
+#[cfg(feature = "mbc5")]
 pub use mbc5::*;
 
+#[cfg(feature = "mbc1")]
 mod mbc1;
+#[cfg(feature = "mbc2")]
 mod mbc2;
+#[cfg(feature = "mbc3")]
 mod mbc3;
+#[cfg(feature = "mbc5")]
 mod mbc5;
 
 fn ram_banks(banks: u8) -> usize {
-    // FIXME
-    return 16;
     match banks {
         0x00 => 0,
         0x01 | 0x02 => 1,

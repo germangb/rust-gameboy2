@@ -11,7 +11,7 @@ default = ["camera"]
 cgb = ["core/cgb"]
 
 [dependencies]
-core = { path = "../core", features = ["debug", "cgb"] }
+core = { path = "../core", features = ["debug", "cgb", "bgra"] }
 camera = { path = "../camera", optional = true }
 pretty_env_logger = "0.4.0"
 log = "0.4.11"
@@ -22,3 +22,4 @@ futures = "0.3.8"
 imgui = "0.6.1"
 imgui-sdl2 = "0.13.0"
 imgui-wgpu = "0.12.0"
+bytemuck = "1.4.1"

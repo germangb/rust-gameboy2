@@ -23,14 +23,19 @@ const BACKGROUND: wgpu::Color = wgpu::Color {
 };
 
 fn main() {
-    pretty_env_logger::init();
+    pretty_env_logger::formatted_timed_builder()
+        .filter(Some("core"), log::LevelFilter::Off)
+        .filter(Some("gfx"), log::LevelFilter::Trace)
+        .filter(Some("gfx_memory"), log::LevelFilter::Info)
+        .filter(Some(module_path!()), log::LevelFilter::Trace)
+        .init();
 
     // init sdl windowing and events
     let sdl = sdl2::init().unwrap();
     let mut event_pump = sdl.event_pump().unwrap();
     let video = sdl.video().unwrap();
     let window = video
-        .window("GameBoy (wgpu)", 640, 480)
+        .window("GameBoy (wgpu)", WIDTH as _, HEIGHT as _)
         .position_centered()
         .build()
         .unwrap();
@@ -55,7 +60,7 @@ fn main() {
             format: wgpu::TextureFormat::Bgra8UnormSrgb,
             width: WIDTH as _,
             height: HEIGHT as _,
-            present_mode: wgpu::PresentMode::Immediate,
+            present_mode: wgpu::PresentMode::Fifo,
         },
     );
 
@@ -132,7 +137,7 @@ fn main() {
 
                 // forward imgui events
                 _ => {
-                    warn!("Unhandled SDL2 event: {:?}", event);
+                    //warn!("Unhandled SDL2 event: {:?}", event);
                 }
             };
         }

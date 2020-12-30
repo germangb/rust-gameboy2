@@ -1,2 +1,5 @@
 [workspace]
 members = ["core", "camera", "native", "wasm"]
+
+[patch.crates-io]
+imgui-wgpu = { git = "https://github.com/germangb/imgui-wgpu-rs", branch = "custom-sampler-desc" }

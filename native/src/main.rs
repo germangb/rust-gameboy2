@@ -1,26 +1,48 @@
-use core::{cartridge::MBC3, Button, GameBoy};
+use core::{cartridge::MBC3, device::Device, Button, GameBoy};
 use log::{info, warn};
 use sdl2::{
     event::{Event, WindowEvent},
-    keyboard::Scancode,
+    keyboard::{Mod, Scancode},
 };
 use wgpu::{
     CommandEncoderDescriptor, DeviceDescriptor, RenderPassColorAttachmentDescriptor,
-    RenderPassDescriptor, RenderPipelineDescriptor, RequestAdapterOptions, SwapChainDescriptor,
-    TextureCopyView, TextureDataLayout, TextureDescriptor, TextureViewDescriptor,
+    RenderPassDescriptor, RenderPipelineDescriptor, RequestAdapterOptions, SamplerDescriptor,
+    SwapChainDescriptor, TextureCopyView, TextureDataLayout, TextureDescriptor,
+    TextureViewDescriptor,
 };
 
 #[cfg(feature = "camera")]
 mod camera_sensor;
 
-const WIDTH: usize = 640;
-const HEIGHT: usize = 480;
+const WINDOW_WIDTH: usize = 640;
+const WINDOW_HEIGHT: usize = 480;
 const BACKGROUND: wgpu::Color = wgpu::Color {
     r: 0.0,
     g: 0.0,
     b: 0.0,
     a: 1.0,
 };
+
+/// Window states.
+#[derive(Default)]
+struct Windows {
+    ppu: bool,
+    cpu: bool,
+}
+
+struct PPU {
+    overlays: bool,
+    scale: u32,
+}
+
+impl Default for PPU {
+    fn default() -> Self {
+        Self {
+            overlays: false,
+            scale: 2,
+        }
+    }
+}
 
 fn main() {
     pretty_env_logger::formatted_timed_builder()
@@ -35,7 +57,8 @@ fn main() {
     let mut event_pump = sdl.event_pump().unwrap();
     let video = sdl.video().unwrap();
     let window = video
-        .window("GameBoy (wgpu)", WIDTH as _, HEIGHT as _)
+        .window("GameBoy", WINDOW_WIDTH as _, WINDOW_HEIGHT as _)
+        //.borderless()
         .position_centered()
         .build()
         .unwrap();
@@ -50,6 +73,7 @@ fn main() {
     .expect("Unable to request Adapter");
 
     // device, queue, and swap chain
+    let (width, height) = window.size();
     let (device, queue) =
         futures::executor::block_on(adapter.request_device(&DeviceDescriptor::default(), None))
             .expect("Error requesting logical device");
@@ -58,8 +82,8 @@ fn main() {
         &SwapChainDescriptor {
             usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
             format: wgpu::TextureFormat::Bgra8UnormSrgb,
-            width: WIDTH as _,
-            height: HEIGHT as _,
+            width: width as _,
+            height: height as _,
             present_mode: wgpu::PresentMode::Fifo,
         },
     );
@@ -93,14 +117,23 @@ fn main() {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
+            sampler_desc: SamplerDescriptor {
+                mag_filter: wgpu::FilterMode::Nearest,
+                ..Default::default()
+            },
         },
     ));
 
     // emulator
     let mut emulator = GameBoy::new(MBC3::new(
-        include_bytes!("../../roms/zelda_dx.gbc").to_vec(),
+        include_bytes!("../../roms/gold.gbc").to_vec(),
     ))
     .expect("Error initializing emulator");
+
+    // ui state
+    let mut windows = Windows::default();
+    windows.ppu = true;
+    let mut ppu = PPU::default();
 
     'main: loop {
         for event in event_pump.poll_iter() {
@@ -115,6 +148,8 @@ fn main() {
                     win_event: WindowEvent::Close,
                     ..
                 } => break 'main,
+
+                Event::KeyDown { scancode: Some(Scancode::D), keymod, .. } => emulator.set_debug_overlays(!keymod.contains(Mod::LSHIFTMOD)),
 
                 // emulator inputs
                 Event::KeyDown { scancode: Some(Scancode::Z), .. } => emulator.press(&Button::A),
@@ -147,23 +182,163 @@ fn main() {
         // imgui ui
         imgui_sdl2.prepare_frame(imgui.io_mut(), &window, &event_pump.mouse_state());
         let ui = imgui.frame();
-        let t = ui.push_style_vars(&[
-            imgui::StyleVar::WindowPadding([0.0; 2]),
-            imgui::StyleVar::WindowRounding(0.0),
-        ]);
+        let t = ui.push_style_var(imgui::StyleVar::WindowRounding(0.0));
+
+        let mut quit = false; // ugly
+
         ui.main_menu_bar(|| {
-            ui.menu(imgui::im_str!("File"), true, || {});
-            ui.menu(imgui::im_str!("Emulator"), false, || {});
+            ui.menu(imgui::im_str!("File"), true, || unsafe {
+                if imgui::sys::igMenuItemBool("Quit\0".as_ptr() as _, std::ptr::null(), false, true) {
+                    //break;
+                    quit = true;
+                }
+            });
+            #[rustfmt::skip]
+            ui.menu(imgui::im_str!("Emulator"), true, || unsafe {
+                if imgui::sys::igMenuItemBool("PPU (Display)\0".as_ptr() as _, std::ptr::null(), windows.ppu, !windows.ppu) {
+                    windows.ppu = true;
+                }
+                if imgui::sys::igMenuItemBool("CPU\0".as_ptr() as _, std::ptr::null(), windows.cpu, !windows.cpu) {
+                    windows.cpu = true;
+                }
+            });
             ui.menu(imgui::im_str!("Debug"), false, || {});
         });
-        imgui::Window::new(imgui::im_str!("Display"))
-            .always_auto_resize(true)
+
+        let tt = ui.push_style_vars(&[
+            imgui::StyleVar::WindowBorderSize(0.0),
+            //imgui::StyleVar::WindowPadding([0.0; 2]),
+        ]);
+        imgui::Window::new(imgui::im_str!("Program"))
+            .size(
+                [width as _, (height as f32) - 16.0],
+                imgui::Condition::Always,
+            )
+            .position([0.0, 16.0], imgui::Condition::Always)
+            .bg_alpha(0.0)
+            .title_bar(false)
+            .bring_to_front_on_focus(false)
+            .collapsible(false)
             .resizable(false)
             .build(&ui, || {
-                let width = core::lcd::WIDTH as f32;
-                let height = core::lcd::HEIGHT as f32;
-                imgui::Image::new(texture_id, [width * 2.0, height * 2.0]).build(&ui);
+                let c = ui.push_style_color(imgui::StyleColor::Text, [0.25, 0.25, 0.25, 1.0]);
+                let pc = emulator.cpu().registers().pc as i32;
+
+                let lines = (ui.window_size()[1] as i32) / 16 - 2;
+                for c_pc in pc - lines / 2..pc + lines / 2 {
+                    if c_pc >= 0 {
+                        let opcode = emulator.read(c_pc as _).unwrap();
+                        if c_pc == pc {
+                            let c =
+                                ui.push_style_color(imgui::StyleColor::Text, [0.5, 0.5, 0.5, 1.0]);
+                            let d8 = emulator.read((c_pc + 1) as _).unwrap();
+                            let d16 = emulator.read_word((c_pc + 1) as _).unwrap();
+                            let r8: i8 = unsafe { std::mem::transmute(d8) };
+                            ui.text(format!(
+                                "{:04x}: * Opcode: {:02X}, d8: {:02X}, d16: {:04X}, r8: {}",
+                                c_pc, opcode, d8, d16, r8
+                            ));
+                            c.pop(&ui);
+                        } else {
+                            ui.text(format!("{:04x}: {:02X}", c_pc, opcode));
+                        }
+                    } else {
+                        ui.text("    |");
+                    }
+                }
+                c.pop(&ui);
             });
+        tt.pop(&ui);
+        if windows.ppu {
+            //let t = ui.push_style_var(imgui::StyleVar::WindowPadding([0.0; 2]));
+            imgui::Window::new(imgui::im_str!("PPU (Display)"))
+                .opened(&mut windows.ppu)
+                .always_auto_resize(true)
+                .resizable(false)
+                .menu_bar(true)
+                .build(&ui, || {
+                    ui.menu_bar(|| {
+                        #[rustfmt::skip]
+                        ui.menu(imgui::im_str!("IO"), true, || unsafe {
+                            if imgui::sys::igMenuItemBool("LCDC\0".as_ptr() as _, std::ptr::null(), false, false) {}
+                            if imgui::sys::igMenuItemBool("STAT\0".as_ptr() as _, std::ptr::null(), false, false) {}
+                            ui.separator();
+                            if imgui::sys::igMenuItemBool("Scroll\0".as_ptr() as _, std::ptr::null(), false, false) {}
+                            if imgui::sys::igMenuItemBool("Window\0".as_ptr() as _, std::ptr::null(), false, false) {}
+                            if imgui::sys::igMenuItemBool("Line\0".as_ptr() as _, std::ptr::null(), false, false) {}
+                            if imgui::sys::igMenuItemBool("Color\0".as_ptr() as _, std::ptr::null(), false, false) {}
+                        });
+                        #[rustfmt::skip]
+                        ui.menu(imgui::im_str!("Scale"), true, || unsafe {
+                            let scales = &[
+                                ("x1\0", 1),
+                                ("x2\0", 2),
+                                ("x3\0", 3),
+                                ("x4\0", 4),
+                            ];
+                            for (label, scale) in scales.iter() {
+                                if imgui::sys::igMenuItemBool(label.as_ptr() as _, std::ptr::null(), ppu.scale == *scale, true) {
+                                    ppu.scale = *scale;
+                                }
+                            }
+                        });
+                    });
+                    let width = core::lcd::WIDTH as f32 * ppu.scale as f32;
+                    let height = core::lcd::HEIGHT as f32 * ppu.scale as f32;
+                    imgui::Image::new(texture_id, [width, height]).build(&ui);
+                });
+            //t.pop(&ui);
+        }
+        if windows.cpu {
+            imgui::Window::new(imgui::im_str!("CPU"))
+                .opened(&mut windows.cpu)
+                .always_auto_resize(true)
+                .resizable(false)
+                .build(&ui, || {
+                    ui.checkbox(imgui::im_str!("Read-only"), &mut true);
+
+                    let cpu = emulator.cpu();
+
+                    ui.input_text(
+                        imgui::im_str!("AF"),
+                        &mut imgui::im_str!("{:04x}", cpu.registers().af()),
+                    )
+                    .read_only(true)
+                    .build();
+                    ui.input_text(
+                        imgui::im_str!("BC"),
+                        &mut imgui::im_str!("{:04x}", cpu.registers().bc()),
+                    )
+                    .read_only(true)
+                    .build();
+                    ui.input_text(
+                        imgui::im_str!("DE"),
+                        &mut imgui::im_str!("{:04x}", cpu.registers().de()),
+                    )
+                    .read_only(true)
+                    .build();
+                    ui.input_text(
+                        imgui::im_str!("HL"),
+                        &mut imgui::im_str!("{:04x}", cpu.registers().hl()),
+                    )
+                    .read_only(true)
+                    .build();
+                    ui.input_text(
+                        imgui::im_str!("SP"),
+                        &mut imgui::im_str!("{:04x}", cpu.registers().sp),
+                    )
+                    .read_only(true)
+                    .build();
+                    ui.input_text(
+                        imgui::im_str!("PC"),
+                        &mut imgui::im_str!("{:04x}", cpu.registers().pc),
+                    )
+                    .read_only(true)
+                    .build();
+                    ui.checkbox(imgui::im_str!("IME"), &mut cpu.ime());
+                    ui.checkbox(imgui::im_str!("HALT"), &mut cpu.halt());
+                });
+        }
         t.pop(&ui);
         imgui_sdl2.prepare_render(&ui, &window);
 
@@ -206,5 +381,9 @@ fn main() {
         drop(pass);
 
         queue.submit(Some(cmd.finish()));
+
+        if quit {
+            break;
+        }
     }
 }

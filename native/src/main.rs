@@ -28,6 +28,7 @@ const BACKGROUND: wgpu::Color = wgpu::Color {
 struct Windows {
     ppu: bool,
     cpu: bool,
+    debug: bool,
 }
 
 struct PPU {
@@ -42,6 +43,18 @@ impl Default for PPU {
             scale: 2,
         }
     }
+}
+
+enum Breakpoint {
+    Address(u16),
+    Line(usize),
+}
+
+#[derive(Default)]
+struct Debug {
+    running: bool,
+    /// running field will be set to 'false' when the breakpoint is reached.
+    breakpoint: Option<Breakpoint>,
 }
 
 fn main() {
@@ -125,20 +138,19 @@ fn main() {
     ));
 
     // emulator
-    let mut emulator = GameBoy::new(MBC3::new(
-        include_bytes!("../../roms/gold.gbc").to_vec(),
-    ))
-    .expect("Error initializing emulator");
+    let mut emulator = GameBoy::new(MBC3::new(include_bytes!("../../roms/gold.gbc").to_vec()))
+        .expect("Error initializing emulator");
 
     // ui state
     let mut windows = Windows::default();
     windows.ppu = true;
     let mut ppu = PPU::default();
+    let mut debug = Debug::default();
 
     'main: loop {
         for event in event_pump.poll_iter() {
+            imgui_sdl2.handle_event(&mut imgui, &event);
             if imgui_sdl2.ignore_event(&event) {
-                imgui_sdl2.handle_event(&mut imgui, &event);
                 continue;
             }
 
@@ -177,7 +189,29 @@ fn main() {
             };
         }
 
-        emulator.update_frame().unwrap();
+        // check breakpoints
+        if let Some(breakpoint) = &debug.breakpoint {
+            match breakpoint {
+                Breakpoint::Address(addr) => {
+                    let pc = emulator.cpu().registers().pc;
+
+                    if pc == *addr {
+                        debug.running = false;
+                    }
+                },
+                Breakpoint::Line(line) => {
+                    let ly = emulator.read(0xff44).unwrap() as usize;
+
+                    if ly == *line {
+                        debug.running = false;
+                    }
+                },
+            }
+        }
+
+        if debug.running {
+            emulator.update_frame().unwrap();
+        }
 
         // imgui ui
         imgui_sdl2.prepare_frame(imgui.io_mut(), &window, &event_pump.mouse_state());
@@ -186,6 +220,7 @@ fn main() {
 
         let mut quit = false; // ugly
 
+        #[rustfmt::skip]
         ui.main_menu_bar(|| {
             ui.menu(imgui::im_str!("File"), true, || unsafe {
                 if imgui::sys::igMenuItemBool("Quit\0".as_ptr() as _, std::ptr::null(), false, true) {
@@ -193,7 +228,6 @@ fn main() {
                     quit = true;
                 }
             });
-            #[rustfmt::skip]
             ui.menu(imgui::im_str!("Emulator"), true, || unsafe {
                 if imgui::sys::igMenuItemBool("PPU (Display)\0".as_ptr() as _, std::ptr::null(), windows.ppu, !windows.ppu) {
                     windows.ppu = true;
@@ -202,7 +236,11 @@ fn main() {
                     windows.cpu = true;
                 }
             });
-            ui.menu(imgui::im_str!("Debug"), false, || {});
+            ui.menu(imgui::im_str!("Debug"), true, || unsafe {
+                if imgui::sys::igMenuItemBool("Debug\0".as_ptr() as _, std::ptr::null(), windows.debug, !windows.debug) {
+                    windows.debug = true;
+                }
+            });
         });
 
         let tt = ui.push_style_vars(&[
@@ -243,7 +281,7 @@ fn main() {
                             ui.text(format!("{:04x}: {:02X}", c_pc, opcode));
                         }
                     } else {
-                        ui.text("    |");
+                        ui.text("");
                     }
                 }
                 c.pop(&ui);
@@ -257,8 +295,8 @@ fn main() {
                 .resizable(false)
                 .menu_bar(true)
                 .build(&ui, || {
+                    #[rustfmt::skip]
                     ui.menu_bar(|| {
-                        #[rustfmt::skip]
                         ui.menu(imgui::im_str!("IO"), true, || unsafe {
                             if imgui::sys::igMenuItemBool("LCDC\0".as_ptr() as _, std::ptr::null(), false, false) {}
                             if imgui::sys::igMenuItemBool("STAT\0".as_ptr() as _, std::ptr::null(), false, false) {}
@@ -268,7 +306,6 @@ fn main() {
                             if imgui::sys::igMenuItemBool("Line\0".as_ptr() as _, std::ptr::null(), false, false) {}
                             if imgui::sys::igMenuItemBool("Color\0".as_ptr() as _, std::ptr::null(), false, false) {}
                         });
-                        #[rustfmt::skip]
                         ui.menu(imgui::im_str!("Scale"), true, || unsafe {
                             let scales = &[
                                 ("x1\0", 1),
@@ -292,8 +329,6 @@ fn main() {
         if windows.cpu {
             imgui::Window::new(imgui::im_str!("CPU"))
                 .opened(&mut windows.cpu)
-                .always_auto_resize(true)
-                .resizable(false)
                 .build(&ui, || {
                     ui.checkbox(imgui::im_str!("Read-only"), &mut true);
 
@@ -339,6 +374,87 @@ fn main() {
                     ui.checkbox(imgui::im_str!("HALT"), &mut cpu.halt());
                 });
         }
+
+        if windows.debug {
+            imgui::Window::new(imgui::im_str!("Debug"))
+                .opened(&mut windows.debug)
+                .build(&ui, || {
+                    if debug.running {
+                        if ui.small_button(imgui::im_str!("Pause")) {
+                            debug.running = false;
+                        }
+                    } else {
+                        if ui.small_button(imgui::im_str!("Resume")) {
+                            debug.running = true;
+                        }
+                    }
+
+                    ui.separator();
+                    ui.text("Breakpoint");
+                    if ui.radio_button_bool(
+                        imgui::im_str!("None"),
+                        matches!(&debug.breakpoint, None),
+                    ) {
+                        debug.breakpoint = None;
+                    }
+                    if ui.radio_button_bool(
+                        imgui::im_str!("Address"),
+                        matches!(&debug.breakpoint, Some(Breakpoint::Address(_))),
+                    ) {
+                        debug.breakpoint = Some(Breakpoint::Address(0));
+                    }
+                    if ui.radio_button_bool(
+                        imgui::im_str!("Line"),
+                        matches!(&debug.breakpoint, Some(Breakpoint::Line(_))),
+                    ) {
+                        debug.breakpoint = Some(Breakpoint::Line(0));
+                    }
+
+                    match &mut debug.breakpoint {
+                        Some(Breakpoint::Address(addr)) => {
+                            ui.spacing();
+                            ui.text_wrapped(imgui::im_str!("Breakpoint address:"));
+
+                            let mut addr_i32 = *addr as _;
+                            let changed = ui
+                                .input_int(imgui::im_str!("Address"), &mut addr_i32)
+                                .chars_hexadecimal(true)
+                                .build();
+
+                            if changed {
+                                // TODO input validation
+                                assert!(addr_i32 >= 0);
+                                assert!(addr_i32 <= 0xffff);
+
+                                *addr = addr_i32 as _;
+                            }
+                        }
+                        Some(Breakpoint::Line(line)) => {
+                            ui.spacing();
+                            ui.text_wrapped(imgui::im_str!("Breakpoint line:"));
+
+                            let mut line_i32 = *line as _;
+                            let changed =
+                                ui.input_int(imgui::im_str!("Line"), &mut line_i32).build();
+
+                            if changed {
+                                // TODO input validation
+                                assert!(line_i32 >= 0);
+                                assert!(line_i32 <= 153);
+
+                                *line = line_i32 as _;
+                            }
+                        }
+                        None => {
+                            ui.spacing();
+                            ui.text_wrapped(imgui::im_str!(
+                                "Select a Breakpoint mode for more options."
+                            ));
+                        }
+                    }
+                });
+        }
+
         t.pop(&ui);
         imgui_sdl2.prepare_render(&ui, &window);
 

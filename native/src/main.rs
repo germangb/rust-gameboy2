@@ -1,5 +1,5 @@
-use core::{cartridge::MBC3, device::Device, Button, GameBoy};
-use log::{info, warn};
+use core::{cartridge::MBC3, device::Device, error::Error, Button, GameBoy};
+use log::{error, info, warn};
 use sdl2::{
     event::{Event, WindowEvent},
     keyboard::{Mod, Scancode},
@@ -190,27 +190,25 @@ fn main() {
         }
 
         // check breakpoints
+        let mut bp = core::BreakpointTrigger::default();
         if let Some(breakpoint) = &debug.breakpoint {
             match breakpoint {
-                Breakpoint::Address(addr) => {
-                    let pc = emulator.cpu().registers().pc;
-
-                    if pc == *addr {
-                        debug.running = false;
-                    }
-                },
-                Breakpoint::Line(line) => {
-                    let ly = emulator.read(0xff44).unwrap() as usize;
-
-                    if ly == *line {
-                        debug.running = false;
-                    }
-                },
+                Breakpoint::Address(addr) => bp.pc = Some(*addr),
+                Breakpoint::Line(line) => bp.ly = Some(*line as _),
             }
         }
-
         if debug.running {
-            emulator.update_frame().unwrap();
+            match emulator.update_frame(&bp) {
+                Err(Error::Breakpoint) => {
+                    info!("Emulator Breakpoint reached.");
+
+                    debug.running = false
+                }
+                Err(e) => {
+                    error!("Emulator error: {}", e)
+                }
+                Ok(_) => {}
+            }
         }
 
         // imgui ui
@@ -379,12 +377,13 @@ fn main() {
             imgui::Window::new(imgui::im_str!("Debug"))
                 .opened(&mut windows.debug)
                 .build(&ui, || {
+                    let [w, h] = ui.window_size();
                     if debug.running {
-                        if ui.small_button(imgui::im_str!("Pause")) {
+                        if ui.button(imgui::im_str!("Pause"), [w, 24.0]) {
                             debug.running = false;
                         }
                     } else {
-                        if ui.small_button(imgui::im_str!("Resume")) {
+                        if ui.button(imgui::im_str!("Resume"), [w, 24.0]) {
                             debug.running = true;
                         }
                     }

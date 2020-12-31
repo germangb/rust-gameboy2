@@ -37,7 +37,11 @@ cd www/            # web server directory
 npm run start      # start server on port 8080
 ```
 
-![](assets/wasm.png)
+## Debugger
+
+Currently WIP debugger (under `native` module).
+
+![](assets/debug.png)
 
 ## References
 

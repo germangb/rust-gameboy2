@@ -45,7 +45,7 @@ use log::{info, warn};
 use serde::{Deserialize, Serialize};
 
 // re-exports
-use crate::dma::HDMA;
+use crate::{dma::HDMA, error::Error};
 pub use gb::GameBoy;
 pub use joypad::Button;
 pub use ppu::lcd;
@@ -69,6 +69,15 @@ const CLOCK: u64 = 4_194_304;
 
 trait Update {
     fn update(&mut self, ticks: u64, flags: &mut irq::Flags);
+}
+
+#[derive(Default)]
+pub struct BreakpointTrigger {
+    /// Breakpoint at specific PC.
+    pub pc: Option<u16>,
+
+    /// Breakpoint at specific LCD line.
+    pub ly: Option<u8>,
 }
 
 #[derive(Default, Debug, Clone, Eq, PartialEq)]
@@ -136,9 +145,26 @@ impl<C: Cartridge> Emulator<C> {
         Ok(())
     }
 
-    fn update_frame(&mut self) -> Result<()> {
+    fn check_bp(&self, bp: &BreakpointTrigger) -> Result<()> {
+        if let Some(pc) = bp.pc {
+            if self.cpu.as_ref().unwrap().registers().pc == pc {
+                return Err(Error::Breakpoint);
+            }
+        }
+        if let Some(ly) = bp.ly {
+            if self.read(0xff44).unwrap() == ly {
+                return Err(Error::Breakpoint);
+            }
+        }
+        Ok(())
+    }
+
+    fn update_frame(&mut self, bp: &BreakpointTrigger) -> Result<()> {
+        self.check_bp(bp)?;
+
         // run until VBLANK
         while self.read(0xff41)? & 0b11 != 0b01 {
+            self.check_bp(bp)?;
             self.update()?;
         }
 
@@ -146,6 +172,7 @@ impl<C: Cartridge> Emulator<C> {
 
         // run until next OAM search
         while self.read(0xff41)? & 0b11 != 0b10 {
+            self.check_bp(bp)?;
             self.update()?;
         }
 

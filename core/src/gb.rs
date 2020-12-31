@@ -4,7 +4,7 @@ use crate::{
     device::{Device, Result},
     irq,
     lcd::Display,
-    Button, Emulator,
+    BreakpointTrigger, Button, Emulator,
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -80,8 +80,8 @@ impl<C: Cartridge> GameBoy<C> {
     }
 
     /// Update emulator.
-    pub fn update_frame(&mut self) -> Result<()> {
-        self.emulator.update_frame()
+    pub fn update_frame(&mut self, bp: &BreakpointTrigger) -> Result<()> {
+        self.emulator.update_frame(bp)
     }
 
     fn boot_cpu(&mut self) {

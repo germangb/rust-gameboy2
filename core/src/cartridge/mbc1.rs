@@ -1,5 +1,5 @@
 use crate::{
-    cartridge::{ram_banks, Cartridge},
+    cartridge::{decode_ram_banks, Cartridge},
     device::{Device, Result},
 };
 use log::info;
@@ -24,7 +24,7 @@ pub struct MBC1 {
 
 impl MBC1 {
     pub fn new(rom: Vec<u8>) -> Self {
-        let ram_banks = ram_banks(rom[0x149]);
+        let ram_banks = decode_ram_banks(rom[0x149]);
         Self {
             rom: rom.into_boxed_slice(),
             ram: vec![0u8; 0x2000 * ram_banks].into_boxed_slice(),

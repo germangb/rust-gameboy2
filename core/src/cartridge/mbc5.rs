@@ -1,5 +1,5 @@
 use crate::{
-    cartridge::{ram_banks, Cartridge},
+    cartridge::{decode_ram_banks, Cartridge},
     device::{Device, Result},
 };
 #[cfg(feature = "serde")]
@@ -17,7 +17,7 @@ pub struct MBC5 {
 
 impl MBC5 {
     pub fn new(rom: Vec<u8>) -> Self {
-        let ram_banks = ram_banks(rom[0x149]);
+        let ram_banks = decode_ram_banks(rom[0x149]);
         Self {
             rom: rom.into_boxed_slice(),
             ram: vec![0; 0x2000 * ram_banks].into_boxed_slice(),

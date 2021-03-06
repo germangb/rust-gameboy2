@@ -40,7 +40,7 @@ use crate::{
     ram::{HighRAM, WorkRAM},
     timer::Timer,
 };
-use log::{info, warn};
+use log::warn;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 

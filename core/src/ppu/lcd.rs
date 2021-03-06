@@ -1,4 +1,13 @@
-use crate::ppu::lcd;
+// the pixel format feature flags are mutually exclusive
+// if more than one of them is enabled, trigger a compilation error
+#[cfg(not(any(
+all(feature = "argb", not(feature = "rgba"), not(feature = "bgra")),
+all(not(feature = "argb"), feature = "rgba", not(feature = "bgra")),
+all(not(feature = "argb"), not(feature = "rgba"), feature = "bgra"),
+all(not(feature = "argb"), not(feature = "rgba"), not(feature = "bgra")),
+)))]
+compile_error!("You must enable only one feature flag related to pixel formats (either 'argb', 'rgba', or 'bgra').");
+
 use educe::Educe;
 
 pub const PALETTE: [Color; 4] = [
@@ -67,11 +76,11 @@ impl Default for LineBuffer {
 }
 
 pub(super) fn transform(color: Color) -> Color {
-    let mut r = lcd::r(&color) as u16;
-    let mut g = lcd::g(&color) as u16;
-    let mut b = lcd::b(&color) as u16;
+    let mut r = r(&color) as u16;
+    let mut g = g(&color) as u16;
+    let mut b = b(&color) as u16;
     r = r * 3 / 4 + 8;
     g = g * 3 / 4 + 8;
     b = b * 3 / 4 + 8;
-    lcd::color(r as u8, g as u8, b as u8)
+    self::color(r as u8, g as u8, b as u8)
 }

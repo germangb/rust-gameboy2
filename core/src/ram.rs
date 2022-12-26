@@ -1,7 +1,3 @@
-mod high;
-mod video;
-mod work;
-
-pub use high::*;
-pub use video::*;
-pub use work::*;
+pub(crate) mod hram;
+pub mod vram;
+pub(crate) mod wram;

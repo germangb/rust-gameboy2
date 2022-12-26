@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 use crate::error::{ReadError, WriteError};
 #[cfg(feature = "mbc1")]
 pub use mbc1::MBC1;
+#[cfg(feature = "mbc2")]
+pub use mbc2::MBC2;
 #[cfg(feature = "mbc3")]
 pub use mbc3::MBC3;
 #[cfg(feature = "mbc5")]
@@ -32,6 +34,26 @@ fn decode_ram_banks(banks: u8) -> usize {
 
 /// An empty touple represents the absence of cartride.
 pub trait Cartridge: Device {}
+
+impl Device for Box<dyn Cartridge> {
+    fn read(&self, address: u16) -> Result<u8, ReadError> {
+        self.as_ref().read(address)
+    }
+
+    fn write(&mut self, address: u16, data: u8) -> Result<(), WriteError> {
+        self.as_mut().write(address, data)
+    }
+
+    fn read_exact(&self, address: u16, buf: &mut [u8]) -> Result<(), ReadError> {
+        self.as_ref().read_exact(address, buf)
+    }
+
+    fn write_exact(&mut self, address: u16, buf: &[u8]) -> Result<(), WriteError> {
+        self.as_mut().write_exact(address, buf)
+    }
+}
+
+impl Cartridge for Box<dyn Cartridge> {}
 
 impl Device for () {
     fn read(&self, address: u16) -> Result<u8, ReadError> {
@@ -95,5 +117,9 @@ impl Device for ROM {
         }
 
         Ok(())
+    }
+
+    fn read_exact(&self, address: u16, buf: &mut [u8]) -> Result<(), ReadError> {
+        self.read_exact_fallback(address, buf)
     }
 }

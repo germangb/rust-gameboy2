@@ -42,37 +42,4 @@ impl ClockDecimate {
 }
 
 #[cfg(test)]
-mod test {
-    use super::ClockDecimate;
-
-    #[test]
-    fn identity_clock() {
-        let mut clock = ClockDecimate::new(4000, 4000);
-
-        assert_eq!(
-            [0, 1, 2, 42],
-            [
-                clock.update(0),
-                clock.update(1),
-                clock.update(2),
-                clock.update(42),
-            ]
-        );
-    }
-
-    #[test]
-    fn half_decimated_clock() {
-        let mut clock = ClockDecimate::new(8000, 4000);
-
-        assert_eq!(
-            [0, 0, 1, 21, 1],
-            [
-                clock.update(0),
-                clock.update(1),
-                clock.update(2),
-                clock.update(42),
-                clock.update(1),
-            ]
-        );
-    }
-}
+mod test {}

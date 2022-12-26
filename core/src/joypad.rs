@@ -104,33 +104,4 @@ impl Device for Joypad {
 }
 
 #[cfg(test)]
-mod test {
-    use super::Button;
-    use crate::{cartridge::NoCartridge, device::Device, LR35902};
-
-    #[test]
-    fn button_select() {
-        let mut emu = LR35902::new(NoCartridge);
-
-        emu.joypad.press(&Button::A);
-        emu.joypad.press(&Button::Select);
-
-        // select button row
-        emu.write(0xff00, 0b0001_0000).unwrap();
-
-        assert_eq!(Ok(0b0001_1010), emu.joypad.read(0xff00));
-    }
-
-    #[test]
-    fn direction_select() {
-        let mut emu = LR35902::new(NoCartridge);
-
-        emu.joypad.press(&Button::Right);
-        emu.joypad.press(&Button::Up);
-
-        // select direction row
-        emu.write(0xff00, 0b0010_0000).unwrap();
-
-        assert_eq!(Ok(0b0010_1010), emu.joypad.read(0xff00));
-    }
-}
+mod test {}

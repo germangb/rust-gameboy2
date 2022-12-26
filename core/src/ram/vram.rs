@@ -44,11 +44,11 @@ pub enum ColorID {
 }
 
 #[derive(Debug)]
-pub(crate) struct TileDataCache {
+pub struct TileDataCache {
     #[cfg(not(feature = "cgb"))]
     pub cache: Box<[ColorID; Self::CACHE_BANK_SIZE]>,
     #[cfg(feature = "cgb")]
-    pub cache: Box<[ColorID; Self::CACHE_BANK_SIZE * 2]>,
+    pub(crate) cache: Box<[ColorID; Self::CACHE_BANK_SIZE * 2]>,
 }
 
 impl TileDataCache {
@@ -58,13 +58,22 @@ impl TileDataCache {
     const CACHE_BANK_SIZE: usize =
         Self::CACHE_TILE_COLS * Self::CACHE_TILE_ROWS * Self::CACHE_TILE_DOTS;
 
+    /// Number of columns of the cache image.
+    pub const DOTS_WIDTH: usize = Self::CACHE_TILE_COLS * 8;
+    /// Number of rows of the cache image.
+    pub const DOTS_HEIGHT: usize = Self::CACHE_TILE_ROWS * 8;
+
     fn new() -> Self {
         Self {
             #[cfg(not(feature = "cgb"))]
-            cache: Box::new([ColorID::C1; Self::CACHE_BANK_SIZE]),
+            cache: Box::new([ColorID::C0; Self::CACHE_BANK_SIZE]),
             #[cfg(feature = "cgb")]
-            cache: Box::new([ColorID::C1; Self::CACHE_BANK_SIZE * 2]),
+            cache: Box::new([ColorID::C0; Self::CACHE_BANK_SIZE * 2]),
         }
+    }
+
+    pub fn as_slice(&self) -> &[ColorID] {
+        &self.cache[..]
     }
 
     /// Compute the index where a given tile's pixel (indexed by bank, tile
@@ -93,13 +102,6 @@ impl TileDataCache {
         return offset + (col as usize) + (bank * Self::CACHE_BANK_SIZE); // account for VRAM bank
     }
 
-    /// Read the current value of a tile's pixel, indexed by VRAM bank, tile
-    /// index, tile row, and tile column.
-    pub fn pixel(&self, bank: usize, index: usize, row: u8, col: u8) -> ColorID {
-        let offset = Self::compute_table_offset(bank, index, row, col);
-        self.cache[offset + col as usize]
-    }
-
     #[rustfmt::skip]
     fn update_cache(&mut self, address: u16, data: [u8; 3], bank: usize) {
         let offset = (address - 0x8000) as u32;
@@ -112,7 +114,7 @@ impl TileDataCache {
             let lo = ((lo as u32) >> (7 - col)) & 1;
             let id = ((hi << 1) | lo) as usize;
             self.cache[table_offset + col] =
-                [ColorID::C0, ColorID::C1, ColorID::C2, ColorID::C3][id];
+                [ColorID::C0, ColorID::C1, ColorID::C2, ColorID::C3][3 - id];
         }
     }
 }
@@ -137,10 +139,8 @@ impl Default for VRAM {
 }
 
 impl VRAM {
-    /// Returns the current tile data in some pixel format.
-    /// The actual format is configured via the feature flags of the crate.
-    pub fn tile_data(&self) -> &[ColorID] {
-        &&self.tile_data_cache.cache[..]
+    pub fn tile_data_cache(&self) -> &TileDataCache {
+        &self.tile_data_cache
     }
 
     pub(crate) fn data(&self, bank: usize, address: u16) -> u8 {
@@ -195,45 +195,4 @@ impl Device for VRAM {
 }
 
 #[cfg(test)]
-mod test {
-    use crate::{cartridge::NoCartridge, device::Device, LR35902};
-
-    #[test]
-    fn video_ram() {
-        let mut emu = LR35902::new(NoCartridge);
-
-        emu.write(0x8000, 1).unwrap();
-        emu.write(0x9fff, 2).unwrap();
-
-        assert_eq!(
-            [1, 2],
-            [emu.read(0x8000).unwrap(), emu.read(0x9fff).unwrap()]
-        );
-    }
-
-    #[test]
-    fn video_ram_bank() {
-        let mut emu = LR35902::new(NoCartridge);
-        let mut states = Vec::new();
-
-        emu.write(0x8000, 0xa).unwrap();
-        emu.write(0x9fff, 0xb).unwrap();
-        emu.write(0xff4f, 1).unwrap();
-        emu.write(0x8000, 0xc).unwrap();
-        emu.write(0x9fff, 0xd).unwrap();
-        emu.write(0xff4f, 0).unwrap();
-
-        states.push(emu.read(0x8000).unwrap());
-        states.push(emu.read(0x9fff).unwrap());
-        emu.write(0xff4f, 1).unwrap();
-        states.push(emu.read(0x8000).unwrap());
-        states.push(emu.read(0x9fff).unwrap());
-
-        assert_eq!(vec![0xa, 0xb, 0xc, 0xd], states)
-    }
-
-    #[test]
-    fn video_ram_attributes() {
-        todo!()
-    }
-}
+mod test {}

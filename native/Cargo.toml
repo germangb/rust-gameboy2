@@ -7,14 +7,16 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-core = { path = "../core", features = ["argb"] }
+core = { path = "../core", features = ["boot", "argb", "lcd_debug_overlay"] }
 camera = { path = "../camera" }
 image = "0.24.5"
 pretty_env_logger = "0.4.0"
 minifb = "0.23.0"
 embedded-graphics = "0.7.1"
+dialog = "0.3.0"
+log = "0.4.17"
 
 [features]
 default = []
 cgb = ["core/cgb"]
-debug = ["core/debug"]
+mem = []

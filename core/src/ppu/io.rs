@@ -237,11 +237,14 @@ impl ColorPalette {
         let r = (0xff * (color & 0x1f) / 0x1f) as u16;
         let g = (0xff * ((color >> 5) & 0x1f) / 0x1f) as u16;
         let b = (0xff * ((color >> 10) & 0x1f) / 0x1f) as u16;
-        crate::ppu::lcd::color(
+        #[cfg(feature = "cgb_washed_out_color")]
+        return crate::ppu::lcd::color(
             ((r * 3) / 4 + 8) as u8,
             ((g * 3) / 4 + 8) as u8,
             ((b * 3) / 4 + 8) as u8,
-        )
+        );
+        #[cfg(not(feature = "cgb_washed_out_color"))]
+        crate::ppu::lcd::color(r as u8, g as u8, b as u8)
     }
 
     fn write_color(pal_data: &mut [u8], mut idx: u8, data: u8) -> u8 {
@@ -282,61 +285,4 @@ impl Device for ColorPalette {
 }
 
 #[cfg(test)]
-mod test {
-    use crate::{cartridge::NoCartridge, device::Device, LR35902};
-
-    #[test]
-    fn scroll() {
-        let mut emu = LR35902::new(NoCartridge);
-
-        emu.write(0xff42, 0x12).unwrap();
-        emu.write(0xff43, 0xab).unwrap();
-
-        assert_eq!([0x12, 0xab], [emu.ppu.scroll.scy, emu.ppu.scroll.scx]);
-    }
-
-    #[test]
-    fn window() {
-        let mut emu = LR35902::new(NoCartridge);
-
-        emu.write(0xff4a, 0x12).unwrap();
-        emu.write(0xff4b, 0xab).unwrap();
-
-        assert_eq!(
-            [0x12, 0x12, 0xab, 0xab],
-            [
-                emu.ppu.window.wy,
-                emu.ppu.window.read(0xff4a).unwrap(),
-                emu.ppu.window.wx,
-                emu.ppu.window.read(0xff4b).unwrap()
-            ]
-        );
-    }
-
-    #[cfg(not(feature = "cgb"))]
-    #[test]
-    fn palette() {
-        let mut emu = LR35902::new(NoCartridge);
-
-        emu.write(0xff47, 0x01).unwrap();
-        emu.write(0xff48, 0x9a).unwrap();
-        emu.write(0xff49, 0xef).unwrap();
-
-        assert_eq!(
-            [0x01, 0x01, 0x9a, 0x9a, 0xef, 0xef,],
-            [
-                emu.ppu.palette.bgp,
-                emu.ppu.palette.read(0xff47).unwrap(),
-                emu.ppu.palette.obp0,
-                emu.ppu.palette.read(0xff48).unwrap(),
-                emu.ppu.palette.obp1,
-                emu.ppu.palette.read(0xff49).unwrap(),
-            ]
-        );
-    }
-
-    #[test]
-    fn color_palette() {
-        todo!()
-    }
-}
+mod test {}

@@ -7,27 +7,19 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Default, Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct OAMDMA {
-    pub dma: u8,
-}
+pub struct OAMDMA {}
 
 impl Device for OAMDMA {
     fn read(&self, address: u16) -> Result<u8, ReadError> {
         dev_read! {
             address {
-                0xff46 => Ok(self.dma),
+                0xff46 => Ok(0x00),
             }
         }
     }
 
     fn write(&mut self, address: u16, data: u8) -> Result<(), WriteError> {
-        dev_write! {
-            address, data {
-                0xff46 => self.dma = data,
-            }
-        }
-
-        Ok(())
+        Err(WriteError::UnknownAddr(address, data))
     }
 }
 
@@ -66,33 +58,4 @@ impl Device for VRAMDMA {
 }
 
 #[cfg(test)]
-mod test {
-    use crate::{cartridge::NoCartridge, device::Device, Update, LR35902};
-
-    #[test]
-    fn oam_dma_start_address() {
-        let mut emu = LR35902::new(NoCartridge);
-        emu.write(0xff46, 0xab).unwrap();
-
-        assert_eq!(0xab00, emu.oam_dma.start_address());
-    }
-
-    #[test]
-    fn oam_dma_time() {
-        let mut emu = LR35902::new(NoCartridge);
-        let mut states = vec![emu.oam_dma.is_active()];
-
-        emu.write(0xff46, 0xab).unwrap();
-        states.push(emu.oam_dma.is_active());
-
-        for _ in 0..160 - 4 {
-            emu.oam_dma.update(1, &mut Default::default());
-        }
-
-        states.push(emu.oam_dma.is_active());
-        emu.oam_dma.update(4, &mut Default::default());
-        states.push(emu.oam_dma.is_active());
-
-        assert_eq!(vec![false, true, true, false], states);
-    }
-}
+mod test {}

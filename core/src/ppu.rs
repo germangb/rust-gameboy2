@@ -1,23 +1,24 @@
 #[cfg(feature = "cgb")]
 use crate::ppu::io::ColorPalette as ColorPaletteIO;
 #[cfg(feature = "cgb")]
-use crate::ram::Attributes;
+use crate::ram::vram::Attributes;
 use crate::{
     device::Device,
     error::{ReadError, WriteError},
     irq,
     ppu::{
         io::{Palette, Scroll, Window, LCDC, STAT},
-        lcd::{ColorId, ColorLineBuffer, LineBuffer},
+        lcd::{BoolLineBuffer, ColorId, ColorLineBuffer, LineBuffer},
         oam::{Entry, Flags, OAM},
     },
-    ram::VRAM,
+    ram::vram::VRAM,
     Update,
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use std::ops::Range;
 
-#[cfg(feature = "debug")]
+#[cfg(feature = "lcd_debug_overlay")]
 mod debug;
 mod io;
 mod lcd;
@@ -42,21 +43,38 @@ pub const PALETTE: [Color; 4] = [
 
 /// A trait for types to drive output of the PPU.
 pub trait LCD {
-    fn output_line(&mut self, ly: u16, data: &[Color; LCD_WIDTH]);
+    fn output_line(&mut self, ly: u8, data: &[Color; LCD_WIDTH]);
+}
+
+#[cfg(feature = "lcd_debug_overlay")]
+bitflags::bitflags! {
+    /// LCD Debug overlay flags.
+    #[rustfmt::skip]
+    #[derive(Default)]
+    pub struct LCDDebugOverlay: u8 {
+        const TILEMAP  = 0b0001;
+        const WINDOW   = 0b0010;
+        const SPRITES  = 0b0100;
+        const LYC      = 0b1000;
+    }
 }
 
 impl LCD for () {
-    fn output_line(&mut self, _ly: u16, _data: &[Color; LCD_WIDTH]) {}
+    fn output_line(&mut self, _ly: u8, _data: &[Color; LCD_WIDTH]) {}
+}
+
+pub struct LCDBuffer(pub [Color; LCD_WIDTH * LCD_HEIGHT]);
+
+impl LCD for LCDBuffer {
+    fn output_line(&mut self, ly: u8, data: &[Color; LCD_WIDTH]) {
+        todo!()
+    }
 }
 
 #[derive(Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PPU<O: LCD> {
-    #[cfg_attr(feature = "serde", serde(skip))]
     output: O,
-    #[cfg_attr(feature = "serde", serde(skip))]
     line: Box<LineBuffer>,
-    #[cfg_attr(feature = "serde", serde(skip))]
     color_line: Box<ColorLineBuffer>,
     oam: OAM,
     video_ram: VRAM,
@@ -67,8 +85,8 @@ pub struct PPU<O: LCD> {
     palette: Palette,
     #[cfg(feature = "cgb")]
     color_palette: ColorPaletteIO,
-    #[cfg(feature = "debug")]
-    debug_overlays: bool,
+    #[cfg(feature = "lcd_debug_overlay")]
+    pub lcd_debug_overlay: LCDDebugOverlay,
 }
 
 impl<O: LCD> PPU<O> {
@@ -86,9 +104,17 @@ impl<O: LCD> PPU<O> {
             palette: Default::default(),
             #[cfg(feature = "cgb")]
             color_palette: Default::default(),
-            #[cfg(feature = "debug")]
-            debug_overlays: false,
+            #[cfg(feature = "lcd_debug_overlay")]
+            lcd_debug_overlay: LCDDebugOverlay::all(),
         }
+    }
+
+    pub fn output(&self) -> &O {
+        &self.output
+    }
+
+    pub fn output_mut(&mut self) -> &mut O {
+        &mut self.output
     }
 
     #[cfg(not(feature = "cgb"))]
@@ -124,49 +150,42 @@ impl<O: LCD> PPU<O> {
         #[cfg(not(feature = "cgb"))]
         let color = PALETTE[0];
         #[cfg(feature = "cgb")]
-        let color = lcd::color(0xc7, 0xc7, 0xc7);
+        let color = lcd::color(0xff, 0xff, 0xff);
         let line = [color; LCD_WIDTH];
         for y in 0..LCD_HEIGHT {
-            self.output.output_line(y as u16, &line);
+            self.output.output_line(y as u8, &line);
         }
     }
 
-    #[cfg(feature = "debug")]
-    pub fn set_debug_overlays(&mut self, b: bool) {
-        self.debug_overlays = b;
-    }
-
-    // render the given line to the display buffer
-    fn draw_scanline(&mut self, ly: u8) {
-        // When Bit 0 is cleared, both background and window become blank (white), and
-        // the Window Display Bit is ignored in that case. Only Sprites may still be
-        // displayed (if enabled in Bit 1).
-        #[cfg(not(feature = "cgb"))]
-        if self.lcdc.bg_window_priority() {
-            self.draw_bg_win(ly);
-        }
-        #[cfg(feature = "cgb")]
-        self.draw_bg_win(ly);
-
+    fn draw_scanline_obj(&mut self, ly: u8) {
         // draw sprites
         // TODO in gbc mode, BG tiles may take priority over sprites
         if self.lcdc.obj_enable() {
             self.draw_sprites(ly);
         }
-
-        self.output
-            .output_line(ly as u16, &self.color_line.as_ref().0);
     }
 
-    fn draw_bg_win(&mut self, ly: u8) {
+    fn draw_scanline(&mut self, ly: u8, dots: Range<usize>) {
+        // When Bit 0 is cleared, both background and window become blank (white), and
+        // the Window Display Bit is ignored in that case. Only Sprites may still be
+        // displayed (if enabled in Bit 1).
+        #[cfg(not(feature = "cgb"))]
+        if self.lcdc.bg_window_priority() {
+            self.draw_bg_win(ly, dots);
+        }
+        #[cfg(feature = "cgb")]
+        self.draw_bg_win(ly, dots);
+    }
+
+    fn draw_bg_win(&mut self, ly: u8, dots: Range<usize>) {
         let Scroll { scy, scx } = self.scroll;
         let Window { wy, wx } = self.window;
 
-        for dot in 0..LCD_WIDTH {
+        for dot in dots {
             let row = scy.wrapping_add(ly) as u16;
             let col = scx.wrapping_add(dot as u8) as u16;
 
-            let (color, color_id) = if self.lcdc.window_enable() {
+            let (color, color_id, attributes) = if self.lcdc.window_enable() {
                 // WX - Window X Position minus 7
                 let dot = (dot + 7) as u8;
 
@@ -174,15 +193,15 @@ impl<O: LCD> PPU<O> {
                     let row = (ly - wy) as u16;
                     let col = (dot - wx) as u16;
                     #[allow(unused_mut)]
-                    let (mut color, color_id) =
+                    let (mut color, color_id, attributes) =
                         self.decode_bg_win(row, col, self.lcdc.window_map_select());
 
-                    #[cfg(feature = "debug")]
-                    if self.debug_overlays {
+                    #[cfg(feature = "lcd_debug_overlay")]
+                    if self.lcd_debug_overlay.contains(LCDDebugOverlay::WINDOW) {
                         color = debug::mix(color, lcd::color(0x00, 0xff, 0xff), 0.25);
                     }
 
-                    (color, color_id)
+                    (color, color_id, attributes)
                 } else {
                     self.decode_bg_win(row, col, self.lcdc.bg_map_select())
                 }
@@ -190,20 +209,24 @@ impl<O: LCD> PPU<O> {
                 self.decode_bg_win(row, col, self.lcdc.bg_map_select())
             };
 
-            self.draw_pixel(dot, color, color_id);
+            self.draw_pixel(dot, color, color_id, attributes);
         }
     }
 
     fn draw_sprites(&mut self, ly: u8) {
         let ly = ly as i16;
-        for i in 0..40 {
-            let Entry {
-                y,
-                x,
-                tile_index,
-                flags,
-            } = self.oam.table()[i];
 
+        // In CGB mode, the first sprite in OAM ($FE00-$FE03) has the highest priority,
+        // and so on. In Non-CGB mode, the smaller the X coordinate, the higher the
+        // priority. The tie breaker (same X coordinates) is the same priority as in CGB
+        // mode.
+        #[cfg(feature = "cgb")]
+        let oam_idx_range = (0..40).rev();
+        #[cfg(not(feature = "cgb"))]
+        let oam_idx_range = 0..40;
+
+        for oam_idx in oam_idx_range {
+            let Entry { y, x, index, flags } = self.oam.table()[oam_idx];
             let y = (y as i16) - 16;
             let x = (x as i16) - 8;
             let size = if self.lcdc.obj_size() { 16 } else { 8 };
@@ -248,7 +271,7 @@ impl<O: LCD> PPU<O> {
                         .decode_tile(
                             row as u16,
                             col as u16,
-                            tile_index,
+                            index,
                             bank,
                             0x8000,
                             color_palette,
@@ -256,8 +279,8 @@ impl<O: LCD> PPU<O> {
                         )
                         .unwrap_or((color, 0));
 
-                    #[cfg(feature = "debug")]
-                    if self.debug_overlays {
+                    #[cfg(feature = "lcd_debug_overlay")]
+                    if self.lcd_debug_overlay.contains(LCDDebugOverlay::SPRITES) {
                         color = debug::mix(
                             color,
                             if self.lcdc.obj_size() {
@@ -269,7 +292,7 @@ impl<O: LCD> PPU<O> {
                         );
                     };
 
-                    self.draw_pixel(dot as _, color, 0);
+                    self.draw_pixel(dot as _, color, 0, crate::ram::vram::Attributes::empty());
                 }
             }
         }
@@ -279,13 +302,24 @@ impl<O: LCD> PPU<O> {
         (self.color_line[dot], self.line[dot])
     }
 
-    fn draw_pixel(&mut self, dot: usize, color: Color, color_id: ColorId) {
+    fn draw_pixel(
+        &mut self,
+        dot: usize,
+        color: Color,
+        color_id: ColorId,
+        attributes: crate::ram::vram::Attributes,
+    ) {
         self.line[dot] = color_id;
         self.color_line[dot] = color;
     }
 
     // decode bg and window pixel
-    fn decode_bg_win(&self, row: u16, col: u16, map: u16) -> (Color, ColorId) {
+    fn decode_bg_win(
+        &self,
+        row: u16,
+        col: u16,
+        map: u16,
+    ) -> (Color, ColorId, crate::ram::vram::Attributes) {
         // tile pixel
         let pixel_row = row % 8;
         let pixel_col = 7 - (col % 8);
@@ -299,13 +333,13 @@ impl<O: LCD> PPU<O> {
         let tile_index = self.video_ram.data(0, tile_index_address);
 
         #[cfg(feature = "cgb")]
-        let tile_attributes = self.video_ram.attributes(tile_index_address);
+        let attributes = self.video_ram.attributes(tile_index_address);
         #[cfg(feature = "cgb")]
-        if tile_attributes.contains(Attributes::HORIZONTAL_FLIP) {
+        if attributes.contains(Attributes::HORIZONTAL_FLIP) {
             tile_pixel_col = 7 - tile_pixel_col;
         }
         #[cfg(feature = "cgb")]
-        if tile_attributes.contains(Attributes::VERTICAL_FLIP) {
+        if attributes.contains(Attributes::VERTICAL_FLIP) {
             tile_pixel_row = 7 - tile_pixel_row;
         }
 
@@ -314,9 +348,9 @@ impl<O: LCD> PPU<O> {
         #[cfg(not(feature = "cgb"))]
         let bank = 0;
         #[cfg(feature = "cgb")]
-        let color_palette = &self.color_palette.bgp()[tile_attributes.palette()];
+        let color_palette = &self.color_palette.bgp()[attributes.palette()];
         #[cfg(feature = "cgb")]
-        let bank = tile_attributes.bank();
+        let bank = attributes.bank();
 
         #[allow(unused_mut)]
         let (mut color, mut color_id) = self
@@ -336,23 +370,28 @@ impl<O: LCD> PPU<O> {
         // Priority flag in LCDC register Bit 0 which overrides all other priority bits
         // when cleared.
         #[cfg(feature = "cgb")]
-        if tile_attributes.contains(Attributes::BG_OAM_PRIPRITY) && color_id != 0 {
+        if attributes.contains(Attributes::BG_OAM_PRIPRITY) {
             color_id = 4;
-            #[cfg(feature = "debug")]
-            if self.debug_overlays {
-                color = debug::mix(color, lcd::color(0xff, 0xff, 0x00), 0.25);
+            #[cfg(feature = "lcd_debug_overlay")]
+            if self.lcd_debug_overlay.contains(LCDDebugOverlay::SPRITES) {
+                color = debug::mix(color, lcd::color(0xff, 0x00, 0xff), 0.25);
             }
         }
 
-        #[cfg(feature = "debug")]
-        if self.debug_overlays && (pixel_row == 0 || pixel_col == 0) {
+        #[cfg(feature = "lcd_debug_overlay")]
+        if self.lcd_debug_overlay.contains(LCDDebugOverlay::TILEMAP)
+            && (pixel_row == 0 || pixel_col == 0)
+        {
             color = debug::mix(color, lcd::color(0x00, 0x00, 0x00), 0.25);
         }
 
-        (color, color_id)
+        #[cfg(feature = "cgb")]
+        return (color, color_id, attributes);
+        #[cfg(not(feature = "cgb"))]
+        return (color, color_id, crate::ram::vram::Attributes::empty());
     }
 
-    // decode tile pixel color (None if reansparent)
+    // decode tile pixel color (None if transparent)
     fn decode_tile(
         &self,
         pixel_row: u16,
@@ -392,13 +431,28 @@ impl<O: LCD> Update for PPU<O> {
     fn update(&mut self, ticks: u64, flags: &mut irq::Flags) {
         let ly = self.stat.ly();
         let mode = self.stat.mode();
+        let dots = self.stat.dots();
+
+        // TODO(german) should not update LCD state if LCD is off...
         self.stat.update(ticks, flags);
-        // if we transition LCD_TRANSTER -> HBALNK, draw the scanline
+
+        // if we transition LCD_TRANSTER -> HBALNK, draw the rest of the scanline
         if matches!(
             (mode, self.stat.mode()),
-            (io::stat::Mode::PIXELS, io::stat::Mode::HBLANK)
+            (io::stat::Mode::PIXEL0, io::stat::Mode::HBLANK),
         ) {
-            self.draw_scanline(ly);
+            self.draw_scanline(ly, 0..LCD_WIDTH);
+            self.draw_scanline_obj(ly);
+            #[cfg(feature = "lcd_debug_overlay")]
+            if self.lcd_debug_overlay.contains(LCDDebugOverlay::LYC)
+                && self.stat.lyc_hist[ly as usize]
+            {
+                for i in (0..LCD_WIDTH).filter(|i| *i % 2 == (ly % 2) as usize) {
+                    self.color_line[i] =
+                        debug::mix(self.color_line[i], lcd::color(0, 0xff, 0), 0.75);
+                }
+            }
+            self.output.output_line(ly, &self.color_line.as_ref().0);
         }
     }
 }
@@ -429,11 +483,11 @@ impl<O: LCD> Device for PPU<O> {
                 0xfe00..=0xfe9f => self.oam.write(address, data),
                 0xff40 => {
                     self.lcdc.write(address, data)?;
-
                     if !self.lcdc.lcd_on() {
                         self.clear_display();
+                        self.stat.reset();
+                        self.lcdc.reset();
                     }
-
                     Ok(())
                 }
                 0xff41 => self.stat.write(address, data),

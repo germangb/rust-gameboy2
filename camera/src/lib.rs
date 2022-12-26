@@ -152,16 +152,6 @@ impl<S: Sensor> PocketCamera<S> {
                     lo |= 1 << col;
                 }
 
-                // match *pixel {
-                //     0x00..=0x39 => { /* white */ }
-                //     0x3a..=0x79 => lo |= 1 << col,
-                //     0x7a..=0xbf => hi |= 1 << col,
-                //     0xc0..=0xff => {
-                //         lo |= 1 << col;
-                //         hi |= 1 << col;
-                //     }
-                // }
-
                 self.ram[tile_hi_offset] = hi;
                 self.ram[tile_lo_offset] = lo;
             }

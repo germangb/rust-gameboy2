@@ -37,6 +37,7 @@ pub struct MBC3 {
 impl MBC3 {
     pub fn new(rom: Box<[u8]>) -> Self {
         let ram_banks = decode_ram_banks(rom[0x149]);
+        let ram_banks = 8;
         Self {
             rom,
             ram: vec![0; 0x2000 * ram_banks].into_boxed_slice(),

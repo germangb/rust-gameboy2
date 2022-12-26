@@ -7,12 +7,14 @@ use crate::{
 use serde::{Deserialize, Serialize};
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
 enum Mode {
     Rom,
     Ram,
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
 pub struct MBC1 {
     rom: Box<[u8]>,
     ram: Box<[u8]>,
@@ -25,6 +27,7 @@ pub struct MBC1 {
 impl MBC1 {
     pub fn new(rom: Box<[u8]>) -> Self {
         let ram_banks = decode_ram_banks(rom[0x149]);
+        let ram_banks = 42; //decode_ram_banks(rom[0x149]);
         Self {
             rom,
             ram: vec![0u8; 0x2000 * ram_banks].into_boxed_slice(),

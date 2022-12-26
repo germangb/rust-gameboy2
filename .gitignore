@@ -11,3 +11,6 @@ Cargo.lock
 # npm
 node_modules
 dist
+
+# vim
+*.swp

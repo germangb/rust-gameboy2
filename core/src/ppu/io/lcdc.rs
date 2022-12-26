@@ -28,6 +28,8 @@ pub struct LCDC {
 }
 
 impl LCDC {
+    pub fn reset(&mut self) {}
+
     #[cfg(todo)]
     pub fn bits(&self) -> u8 {
         self.flags.bits
@@ -49,7 +51,7 @@ impl LCDC {
         self.flags.contains(Flags::OBJ_SIZE)
     }
 
-    #[cfg(not(feature = "cgb"))]
+    //#[cfg(not(feature = "cgb"))]
     pub fn bg_window_priority(&self) -> bool {
         self.flags.contains(Flags::BG_WINDOW_DISPLAY_PRIORITY)
     }
@@ -109,105 +111,4 @@ impl Device for LCDC {
 }
 
 #[cfg(test)]
-mod test {
-    use crate::{cartridge::NoCartridge, device::Device, LR35902};
-
-    #[test]
-    fn lcdc() {
-        let mut emu = LR35902::new(NoCartridge);
-        let mut states = Vec::new();
-
-        emu.write(0xff40, 0b00000000).unwrap();
-        states.push(emu.ppu.lcdc.lcd_on());
-
-        emu.write(0xff40, 0b10000000).unwrap();
-        states.push(emu.ppu.lcdc.lcd_on());
-
-        assert_eq!(vec![false, true], states);
-    }
-
-    #[test]
-    fn window_display() {
-        let mut emu = LR35902::new(NoCartridge);
-        let mut states = Vec::new();
-
-        emu.write(0xff40, 0b00000000).unwrap();
-        states.push(emu.ppu.lcdc.window_enable());
-
-        emu.write(0xff40, 0b00100000).unwrap();
-        states.push(emu.ppu.lcdc.window_enable());
-
-        assert_eq!(vec![false, true], states);
-    }
-
-    #[test]
-    fn obj_display() {
-        let mut emu = LR35902::new(NoCartridge);
-        let mut states = Vec::new();
-
-        emu.write(0xff40, 0b00000000).unwrap();
-        states.push(emu.ppu.lcdc.obj_enable());
-
-        emu.write(0xff40, 0b00000010).unwrap();
-        states.push(emu.ppu.lcdc.obj_enable());
-
-        assert_eq!(vec![false, true], states);
-    }
-
-    #[test]
-    #[cfg(not(feature = "cgb"))]
-    fn bg_window_display_priority_display() {
-        let mut emu = LR35902::new(NoCartridge);
-        let mut states = Vec::new();
-
-        emu.write(0xff40, 0b00000000).unwrap();
-        states.push(emu.ppu.lcdc.bg_window_priority());
-
-        emu.write(0xff40, 0b00000001).unwrap();
-        states.push(emu.ppu.lcdc.bg_window_priority());
-
-        assert_eq!(vec![false, true], states);
-    }
-
-    #[test]
-    fn bg_window_data_select() {
-        let mut emu = LR35902::new(NoCartridge);
-        let mut states = Vec::new();
-
-        emu.write(0xff40, 0b00000000).unwrap();
-        states.push(emu.ppu.lcdc.bg_window_data_select());
-
-        emu.write(0xff40, 0b00010000).unwrap();
-        states.push(emu.ppu.lcdc.bg_window_data_select());
-
-        assert_eq!(vec![0x8800, 0x8000], states);
-    }
-
-    #[test]
-    fn bg_map_select() {
-        let mut emu = LR35902::new(NoCartridge);
-        let mut states = Vec::new();
-
-        emu.write(0xff40, 0b00000000).unwrap();
-        states.push(emu.ppu.lcdc.bg_map_select());
-
-        emu.write(0xff40, 0b00001000).unwrap();
-        states.push(emu.ppu.lcdc.bg_map_select());
-
-        assert_eq!(vec![0x9800, 0x9c00], states);
-    }
-
-    #[test]
-    fn window_map_select() {
-        let mut emu = LR35902::new(NoCartridge);
-        let mut states = Vec::new();
-
-        emu.write(0xff40, 0b00000000).unwrap();
-        states.push(emu.ppu.lcdc.window_map_select());
-
-        emu.write(0xff40, 0b01000000).unwrap();
-        states.push(emu.ppu.lcdc.window_map_select());
-
-        assert_eq!(vec![0x9800, 0x9c00], states);
-    }
-}
+mod test {}

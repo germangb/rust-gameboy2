@@ -7,11 +7,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["boot", "mbc1", "mbc2", "mbc3", "mbc5"]
+default = ["mbc1", "mbc2", "mbc3", "mbc5", "boot"]
 
 boot = [] # boot sequence support (requires boot roms)
-debug = ["palette"]
+lcd_debug_overlay = ["palette"]
 cgb = [] # color mode
+cgb_washed_out_color = []
 
 # cartridge controllers
 mbc1 = []
@@ -19,9 +20,9 @@ mbc2 = []
 mbc3 = []
 mbc5 = []
 
-rgba = [] # R8_G8_B8_A8 pixel output format (little endian)
-bgra = [] # A8_R8_G8_B8 pixel output format (little endian)
-argb = [] # A8_R8_G8_B8 pixel output format (little endian) (default)
+rgba = [] # R8_G8_B8_A8 pixel output format
+bgra = [] # A8_R8_G8_B8 pixel output format
+argb = [] # A8_R8_G8_B8 pixel output format (default)
 
 [dependencies]
 log = "0.4.11"

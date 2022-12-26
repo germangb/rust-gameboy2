@@ -42,7 +42,7 @@ impl Flags {
 pub struct Entry {
     pub y: u8,
     pub x: u8,
-    pub tile_index: u8,
+    pub index: u8,
     pub flags: Flags,
 }
 
@@ -75,7 +75,7 @@ impl Device for OAM {
                     match off % 4 {
                         0 => Ok(self.table[off / 4].y),
                         1 => Ok(self.table[off / 4].x),
-                        2 => Ok(self.table[off / 4].tile_index),
+                        2 => Ok(self.table[off / 4].index),
                         3 => Ok(self.table[off / 4].flags.bits),
                         _ => unreachable!(),
                     }
@@ -92,7 +92,7 @@ impl Device for OAM {
                     match off % 4 {
                         0 => self.table[off / 4].y = data,
                         1 => self.table[off / 4].x = data,
-                        2 => self.table[off / 4].tile_index = data,
+                        2 => self.table[off / 4].index = data,
                         3 => self.table[off / 4].flags = Flags::from_bits(data).unwrap(),
                         _ => unreachable!(),
                     }
@@ -116,62 +116,4 @@ impl Device for OAM {
 }
 
 #[cfg(test)]
-mod test {
-    use super::Entry;
-    use crate::{cartridge::NoCartridge, device::Device, ppu::oam::Flags, LR35902};
-
-    #[test]
-    fn oam() {
-        let mut emu = LR35902::new(NoCartridge);
-
-        emu.write(0xfe00, 0x12).unwrap();
-        emu.write(0xfe9f, 0xef).unwrap();
-
-        assert_eq!(
-            [0x12, 0x12, 0x12, 0xef, 0xef, 0xef,],
-            [
-                emu.read(0xfe00).unwrap(),
-                emu.ppu.read(0xfe00).unwrap(),
-                emu.ppu.oam.read(0xfe00).unwrap(),
-                emu.read(0xfe9f).unwrap(),
-                emu.ppu.read(0xfe9f).unwrap(),
-                emu.ppu.oam.read(0xfe9f).unwrap(),
-            ]
-        );
-    }
-
-    #[test]
-    fn oam_flags() {
-        let mut emu = LR35902::new(NoCartridge);
-
-        emu.write(0xfe03, 0b10101010).unwrap();
-        emu.write(0xfe06, 0b10101010).unwrap();
-        emu.write(0xfe09, 0b10101010).unwrap();
-
-        assert_eq!(
-            [0b10101010, 0b10101010, 0b10101010,],
-            [
-                emu.read(0xfe03).unwrap(),
-                emu.read(0xfe06).unwrap(),
-                emu.read(0xfe09).unwrap(),
-            ]
-        );
-        assert_eq!(
-            [
-                Flags::from_bits(0b10101010).unwrap(),
-                Flags::from_bits(0b10101010).unwrap(),
-                Flags::from_bits(0b10101010).unwrap(),
-            ],
-            [
-                emu.ppu.oam.table[0].flags,
-                emu.ppu.oam.table[0].flags,
-                emu.ppu.oam.table[0].flags,
-            ]
-        );
-    }
-
-    #[test]
-    fn entry_size() {
-        assert_eq!(4, std::mem::size_of::<Entry>())
-    }
-}
+mod test {}

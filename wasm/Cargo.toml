@@ -9,7 +9,7 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-core = { path = "../core", features = ["debug", "wasm-bindgen", "rgba"] }
+core = { path = "../core", features = ["lcd_debug_overlay", "wasm-bindgen", "rgba"] }
 wasm-bindgen = "0.2.69"
 web-sys = { version = "0.3.46", features = ["CanvasRenderingContext2d", "ImageData"] }
 console_error_panic_hook = "0.1.6"

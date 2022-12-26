@@ -20,7 +20,7 @@ pub trait Device {
     /// Fallback method for read_exact.
     fn read_exact_fallback(&self, address: u16, buf: &mut [u8]) -> Result<(), ReadError> {
         for (i, out) in buf.iter_mut().enumerate() {
-            *out = self.read(address + i as u16)?;
+            *out = self.read(address + (i as u16))?;
         }
         Ok(())
     }
@@ -38,25 +38,25 @@ pub trait Device {
         }
         Ok(())
     }
+
+    /// Return the name of the device at the given address.
+    fn name(&self, address: u16) -> Option<&str> {
+        None
+    }
 }
 
-/// Main device used by the CPU when running the emulation.
-///
-/// The only purpose of this trait is to provide a method to read LE u16 values
-/// as required by some CPU instructions, as well as some basic logging for
-/// buggy and/or missing reads and writes.
-pub trait MainDevice: Device {
+pub trait MemoryBus: Device {
     fn read(&self, address: u16) -> Result<u8, ReadError> {
         match <Self as Device>::read(self, address) {
             Ok(b) => Ok(b),
             Err(err) => {
                 match err {
-                    ReadError::InvalidAddress(_) => log::error!("{err}"),
+                    ReadError::UnknownAddr(_) => log::warn!("{err}"),
                     ReadError::AddrNotImpl(_, Some(Component::APU)) => {}
                     ReadError::AddrNotImpl(_, Some(Component::Serial)) => {}
-                    _ => log::warn!("{err}"),
+                    _ => log::error!("{err}"),
                 }
-                Ok(0xff)
+                Ok(0x00)
             }
         }
     }
@@ -66,10 +66,10 @@ pub trait MainDevice: Device {
             Ok(_) => Ok(()),
             Err(err) => {
                 match err {
-                    WriteError::InvalidAddress(_, _) => log::error!("{err}"),
+                    WriteError::UnknownAddr(_, _) => log::warn!("{err}"),
                     WriteError::AddrNotImpl(_, _, Some(Component::APU)) => {}
                     WriteError::AddrNotImpl(_, _, Some(Component::Serial)) => {}
-                    _ => log::warn!("{err}"),
+                    _ => log::error!("{err}"),
                 }
                 Ok(())
             }
@@ -81,8 +81,8 @@ pub trait MainDevice: Device {
     /// device.
     fn read_word(&self, address: u16) -> Result<u16, ReadError> {
         let bytes = [
-            <Self as MainDevice>::read(self, address)?,
-            <Self as MainDevice>::read(self, address + 1)?,
+            <Self as MemoryBus>::read(self, address)?,
+            <Self as MemoryBus>::read(self, address + 1)?,
         ];
         Ok(LittleEndian::read_u16(&bytes[..]))
     }
@@ -93,42 +93,11 @@ pub trait MainDevice: Device {
     fn write_word(&mut self, address: u16, data: u16) -> Result<(), WriteError> {
         let mut bytes = [0; 2];
         LittleEndian::write_u16(&mut bytes[..], data);
-        <Self as MainDevice>::write(self, address, bytes[0])?;
-        <Self as MainDevice>::write(self, address + 1, bytes[1])?;
+        <Self as MemoryBus>::write(self, address, bytes[0])?;
+        <Self as MemoryBus>::write(self, address + 1, bytes[1])?;
         Ok(())
     }
 }
 
 #[cfg(test)]
-mod test {
-    use super::{Device, Result};
-
-    type TestDevice = Box<[u8; 0x10000]>;
-
-    impl Device for TestDevice {
-        fn read(&self, address: u16) -> Result<u8> {
-            Ok(self[address as usize])
-        }
-
-        fn write(&mut self, address: u16, data: u8) -> Result<()> {
-            self[address as usize] = data;
-
-            Ok(())
-        }
-    }
-
-    fn test_device() -> TestDevice {
-        Box::new([0; 0x10000])
-    }
-
-    #[test]
-    fn read_write_word() {
-        let mut device = test_device();
-
-        device.write_word(0x0000, 0x1234).unwrap();
-        device.write_word(0x0100, 0xabcd).unwrap();
-
-        assert_eq!(0x1234, device.read_word(0x0000).unwrap());
-        assert_eq!(0xabcd, device.read_word(0x0100).unwrap());
-    }
-}
+mod test {}

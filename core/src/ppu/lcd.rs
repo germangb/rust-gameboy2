@@ -26,6 +26,10 @@ cfg_if::cfg_if! {
         pub(crate) const fn color(r: u8, g: u8, b: u8) -> Color {
             [b, g, r, 0xff]
         }
+
+        pub(crate) const fn color_from_u32(rgb: u32) -> Color {
+            [((rgb >> 16) & 0xff) as u8, ((rgb >> 8) & 0xff) as u8, ((rgb >> 0) & 0xff) as u8, 0xff]
+        }
     }
 }
 
@@ -48,6 +52,15 @@ impl Default for LineBuffer {
 pub(super) struct ColorLineBuffer(#[educe(Deref, DerefMut)] pub ColorLine);
 
 impl Default for ColorLineBuffer {
+    fn default() -> Self {
+        Self([Default::default(); super::LCD_WIDTH])
+    }
+}
+#[derive(Debug, Clone, Eq, PartialEq, Educe)]
+#[educe(Deref, DerefMut)]
+pub(super) struct BoolLineBuffer(#[educe(Deref, DerefMut)] pub [bool; super::LCD_WIDTH]);
+
+impl Default for BoolLineBuffer {
     fn default() -> Self {
         Self([Default::default(); super::LCD_WIDTH])
     }

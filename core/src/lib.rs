@@ -271,31 +271,27 @@ impl<C: Cartridge, O: LCD> Device for LR35902<C, O> {
                 0xfe00..=0xfe9f => self.ppu.read(address),
                 // TODO emulate behavior depending on device & hardware revision (https://gbdev.io/pandocs/#fea0-feff-range)
                 0xfea0..=0xfeff => Ok(0xff), // return this for now...
-                0xff00..=0xff7f => {
-                    // IO registers
-                    dev_read! {
-                        address {
-                            0xff00 => self.joypad.read(address),
-                            0xff01..=0xff02 => self.serial.read(address),
-                            0xff04..=0xff07 => self.timer.read(address),
-                            0xff0f => self.irq.read(address),
-                            0xff10..=0xff26 => self.apu.read(address),
-                            0xff30..=0xff3f => self.apu.read(address),
-                            0xff40..=0xff45 => self.ppu.read(address),
-                            0xff46 => self.oam_dma.read(address),
-                            0xff47..=0xff4b => self.ppu.read(address),
-                            0xff4d => self.read_double_speed(),
-                            0xff4f => self.ppu.read(address),
-                            0xff50 => self.boot.read(address),
-                            #[cfg(feature = "cgb")]
-                            0xff51..=0xff54 => self.vram_dma.read(address),
-                            // TODO Emulate OAM timings
-                            0xff55 => Ok(0xff),
-                            0xff68..=0xff6b => self.ppu.read(address),
-                            0xff70 => self.work_ram.read(address),
-                        }
-                    }
-                }
+                // IO registers
+                0xff00 => self.joypad.read(address),
+                0xff01..=0xff02 => self.serial.read(address),
+                0xff04..=0xff07 => self.timer.read(address),
+                0xff0f => self.irq.read(address),
+                0xff10..=0xff26 => self.apu.read(address),
+                0xff30..=0xff3f => self.apu.read(address),
+                0xff40..=0xff45 => self.ppu.read(address),
+                0xff46 => self.oam_dma.read(address),
+                0xff47..=0xff4b => self.ppu.read(address),
+                0xff4d => self.read_double_speed(),
+                0xff4f => self.ppu.read(address),
+                0xff50 => self.boot.read(address),
+                #[cfg(feature = "cgb")]
+                0xff51..=0xff54 => self.vram_dma.read(address),
+                // TODO Emulate OAM timings
+                0xff55 => Ok(0xff),
+                0xff68..=0xff6b => self.ppu.read(address),
+                0xff70 => self.work_ram.read(address),
+                0xff71..=0xff7f => Err(ReadError::InvalidAddress(address)), // undocumented registers
+                //
                 0xff80..=0xfffe => self.high_ram.read(address),
                 0xffff => self.irq.read(address),
             }
@@ -322,43 +318,39 @@ impl<C: Cartridge, O: LCD> Device for LR35902<C, O> {
                 0xfe00..=0xfe9f => self.ppu.write(address, data),
                 // TODO emulate behavior depending on device & hardware revision (https://gbdev.io/pandocs/#fea0-feff-range)
                 0xfea0..=0xfeff => Ok(()),
-                0xff00..=0xff7f => {
-                    // IO registers
-                    dev_write! {
-                        address, data {
-                            0xff00 => self.joypad.write(address, data),
-                            0xff01..=0xff02 => self.serial.write(address, data),
-                            0xff04..=0xff07 => self.timer.write(address, data),
-                            0xff0f => self.irq.write(address, data),
-                            0xff10..=0xff26 => self.apu.write(address, data),
-                            0xff30..=0xff3f => self.apu.write(address, data),
-                            0xff40..=0xff45 => self.ppu.write(address, data),
-                            0xff46 => {
-                                self.oam_dma.write(address, data)?;
-                                // TODO emulate OAM timings
-                                self.do_oam_dma();
-                                Ok(())
-                            }
-                            0xff47..=0xff4b => self.ppu.write(address, data),
-                            0xff4d => {
-                                self.write_double_speed(data);
-                                Ok(())
-                            }
-                            0xff4f => self.ppu.write(address, data),
-                            0xff50 => self.boot.write(address, data),
-                            #[cfg(feature = "cgb")]
-                            0xff51..=0xff54 => self.vram_dma.write(address, data),
-                            #[cfg(feature = "cgb")]
-                            0xff55 => {
-                                // TODO emulate HDMA timings
-                                self.do_vram_dma(data);
-                                Ok(())
-                            }
-                            0xff68..=0xff6b => self.ppu.write(address, data),
-                            0xff70 => self.work_ram.write(address, data),
-                        }
-                    }
-                },
+                // IO registers
+                0xff00 => self.joypad.write(address, data),
+                0xff01..=0xff02 => self.serial.write(address, data),
+                0xff04..=0xff07 => self.timer.write(address, data),
+                0xff0f => self.irq.write(address, data),
+                0xff10..=0xff26 => self.apu.write(address, data),
+                0xff30..=0xff3f => self.apu.write(address, data),
+                0xff40..=0xff45 => self.ppu.write(address, data),
+                0xff46 => {
+                    self.oam_dma.write(address, data)?;
+                    // TODO emulate OAM timings
+                    self.do_oam_dma();
+                    Ok(())
+                }
+                0xff47..=0xff4b => self.ppu.write(address, data),
+                0xff4d => {
+                    self.write_double_speed(data);
+                    Ok(())
+                }
+                0xff4f => self.ppu.write(address, data),
+                0xff50 => self.boot.write(address, data),
+                #[cfg(feature = "cgb")]
+                0xff51..=0xff54 => self.vram_dma.write(address, data),
+                #[cfg(feature = "cgb")]
+                0xff55 => {
+                    // TODO emulate HDMA timings
+                    self.do_vram_dma(data);
+                    Ok(())
+                }
+                0xff68..=0xff6b => self.ppu.write(address, data),
+                0xff70 => self.work_ram.write(address, data),
+                0xff71..=0xff7f => Err(WriteError::InvalidAddress(address, data)), // undocumented registers
+                //
                 0xff80..=0xfffe => self.high_ram.write(address, data),
                 0xffff => self.irq.write(address, data),
             }

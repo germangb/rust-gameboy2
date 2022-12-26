@@ -10,7 +10,7 @@ use embedded_graphics::{
     primitives::{PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, StrokeAlignment},
 };
 use minifb::{Key, KeyRepeat, Scale, Window, WindowOptions};
-use std::{cell::RefCell, convert::Infallible, io::Cursor, rc::Rc};
+use std::{cell::RefCell, convert::Infallible, rc::Rc};
 
 // LCD window
 const WINDOW_LCD_TITLE: &str = "LCD";
@@ -198,7 +198,8 @@ fn draw_color_palettes(
 
 fn make_emulator_cartridge() -> impl Cartridge {
     //camera::PocketCamera::new(CameraSensor::new())
-    //core::cartridge::MBC5::new(include_bytes!("cannon-fodder.gbc").to_vec().into_boxed_slice())
+    //core::cartridge::MBC5::new(include_bytes!("cannon-fodder.gbc").to_vec().
+    // into_boxed_slice())
     core::cartridge::MBC5::new(include_bytes!("gold.gbc").to_vec().into_boxed_slice())
 }
 
@@ -212,11 +213,6 @@ fn main() {
     pretty_env_logger::init();
     let mut opts_lcd = WindowOptions::default();
     let mut opts_vram = WindowOptions::default();
-    opts_lcd.scale = Scale::X2;
-    opts_lcd.topmost = true;
-    opts_vram.scale = Scale::X2;
-    let mut window_lcd =
-        Window::new(WINDOW_LCD_TITLE, WINDOW_LCD_W, WINDOW_LCD_H, opts_lcd).unwrap();
     #[cfg(not(feature = "cgb"))]
     let mut window_vram =
         Window::new(WINDOW_VRAM_TITLE, WINDOW_VRAM_W, WINDOW_VRAM_H, opts_vram).unwrap();
@@ -227,6 +223,9 @@ fn main() {
             Window::new(&format!("{WINDOW_VRAM_TITLE}[0]"), WINDOW_VRAM_W, WINDOW_VRAM_H, opts_vram).unwrap(),
             Window::new(&format!("{WINDOW_VRAM_TITLE}[1]"), WINDOW_VRAM_W, WINDOW_VRAM_H, opts_vram).unwrap(),
         );
+    opts_lcd.scale = Scale::X2;
+    let mut window_lcd =
+        Window::new(WINDOW_LCD_TITLE, WINDOW_LCD_W, WINDOW_LCD_H, opts_lcd).unwrap();
     #[cfg(feature = "cgb")]
     window_lcd.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
     #[cfg(not(feature = "cgb"))]

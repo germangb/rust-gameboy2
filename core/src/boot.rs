@@ -7,9 +7,9 @@ use log::info;
 use serde::{Deserialize, Serialize};
 
 #[cfg(all(feature = "boot", not(feature = "cgb")))]
-const ROM: &[u8] = include_bytes!("../boot/dmg_boot.bin");
+const ROM: &[u8] = include_bytes!("../boot/boot.gb");
 #[cfg(all(feature = "boot", feature = "cgb"))]
-const ROM: &[u8] = include_bytes!("../boot/cgb_boot.bin");
+const ROM: &[u8] = include_bytes!("../boot/boot.gbc");
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

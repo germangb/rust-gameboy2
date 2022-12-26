@@ -1,0 +1,18 @@
+# priority
+- Fix building without boot feature
+- Revisit how DMA transfers are impl
+- Pass Box<[u8]> to cartridges instead of Vec<u8>
+- Fix color format / endianness issue
+- Remove log from Device impls
+- Remove panics in Device impls (allow invalid/unexpected writes and log them o something)
+- Revisit how to handle CGB writing to GB-only registers and vice-versa (example, tetris writes to 0xff47)
+- Fix skip_boot() on cgb
+- Fix current tests
+
+# nice to have / procrastinate
+- generic debug overlay
+
+
+# talk ideas
+
+talk about emulation bugs (strategies to cope with them, maybe walk throuh use case)

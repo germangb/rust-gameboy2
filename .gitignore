@@ -1,0 +1,13 @@
+/target
+Cargo.lock
+
+# IDEA
+.idea
+
+# roms
+*.gb
+*.gbc
+
+# npm
+node_modules
+dist

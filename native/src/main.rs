@@ -480,11 +480,6 @@ fn main() {
             match gb.soc_mut().step_breakpoint(all.clone()) {
                 Ok(breakpoint) => {
                     pause = breakpoint.1.breakpoint(gb.soc()) || breakpoint.2.breakpoint(gb.soc());
-
-                    if breakpoint.0.breakpoint(gb.soc()) {
-                        //println!("FRAME");
-                        //println!("SCY={}", gb.soc().read(0xff42).unwrap());
-                    }
                 }
                 Err(err) => {
                     pause = true;

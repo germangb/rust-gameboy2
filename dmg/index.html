@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Hello wasm-pack!</title>
+    <style>
+      body {
+        padding: 24px;
+      }
+      .canvas {
+        background: black;
+        border-radius: 3px;
+        margin-right: 24px;
+      }
+      .shadow {
+        box-shadow: gray 0 4px 24px;
+      }
+      .lcd {
+        width: 320px;
+        height: 288px;
+        image-rendering: pixelated;
+      }
+      .vram {
+        image-rendering: pixelated;
+      }
+      .pal {
+        position: absolute;
+      }
+      .ferris {
+        display: block;
+      }
+      :fullscreen {
+        background-color: black;
+      }
+    </style>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.3/font/bootstrap-icons.css">
+  </head>
+  <body>
+    <noscript>This page contains webassembly and javascript content, please enable javascript in your browser.</noscript>
+    <script src="./bootstrap.js"></script>
+    <canvas width="128" height="112" style="display: none" id="sensor_canvas"></canvas>
+    <video autoplay="true" id="sensor_video" width="128" height="112" style="display: none"></video>
+    <img src="ferris.png" width="256" class="ferris">
+    <div style="margin-bottom: 12px">
+      <div class="btn-group" style="margin-bottom: 12px">
+        <button type="button" class="btn btn-success" id="load">
+          <i class="bi bi-folder-fill"></i>
+          Load
+        </button>
+      </div>
+      <input class="btn-group" type="file" id="file_select" hidden>
+      <div class="btn-group" style="margin-bottom: 12px">
+        <button class="btn btn-primary" id="play">
+          <i class="bi bi-play-fill"></i>
+        </button>
+        <button class="btn btn-primary" id="pause">
+          <i class="bi bi-pause-fill"></i>
+        </button>
+      </div>
+      <div class="btn-group" style="margin-bottom: 12px">
+        <button class="btn btn-light" id="fullscreen">
+          <i class="bi bi-arrows-fullscreen"></i>
+        </button>
+      </div>
+      <div class="btn-group" style="margin-bottom: 12px">
+        <button class="btn btn-danger" id="reset">
+          <i class="bi bi-arrow-clockwise"></i>
+          Reset
+        </button>
+      </div>
+    </div>
+    <div style="font-size: 0">
+      <canvas width="160" height="144" class="shadow canvas lcd" id="lcd"></canvas>
+      <canvas width="32" height="128" class="shadow canvas pal" id="pal"></canvas>
+      <canvas width="192" height="128" class="shadow canvas vram" id="vram0"></canvas>
+      <canvas width="192" height="128" class="shadow canvas vram" id="vram1" style="display: none"></canvas>
+    </div>
+    <div style="margin-top: 12px">
+      <label>
+        <input type="checkbox" id="lcd_tilemap"/> <small>TILEMAP</small>
+      </label>
+      <br />
+      <label>
+        <input type="checkbox" id="lcd_window"/> <small>WINDOW</small>
+      </label>
+      <br />
+      <label>
+        <input type="checkbox" id="lcd_sprites"/> <small>SPRITES</small>
+      </label>
+      <br />
+      <label>
+        <input type="checkbox" id="lcd_lyc"/> <small>LYC</small>
+      </label>
+    </div>
+  </body>
+</html>

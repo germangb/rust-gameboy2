@@ -237,13 +237,6 @@ impl ColorPalette {
         let r = (0xff * (color & 0x1f) / 0x1f) as u16;
         let g = (0xff * ((color >> 5) & 0x1f) / 0x1f) as u16;
         let b = (0xff * ((color >> 10) & 0x1f) / 0x1f) as u16;
-        #[cfg(feature = "cgb_washed_out_color")]
-        return crate::ppu::lcd::color(
-            ((r * 3) / 4 + 8) as u8,
-            ((g * 3) / 4 + 8) as u8,
-            ((b * 3) / 4 + 8) as u8,
-        );
-        #[cfg(not(feature = "cgb_washed_out_color"))]
         crate::ppu::lcd::color(r as u8, g as u8, b as u8)
     }
 

@@ -17,6 +17,8 @@ use crate::{
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
+#[cfg(feature = "wasm-bindgen")]
+use wasm_bindgen::prelude::*;
 
 #[cfg(feature = "lcd_debug_overlay")]
 mod debug;
@@ -50,6 +52,7 @@ pub trait LCD {
 bitflags::bitflags! {
     /// LCD Debug overlay flags.
     #[rustfmt::skip]
+    #[cfg_attr(feature = "wasm-bindgen", wasm_bindgen)]
     #[derive(Default)]
     pub struct LCDDebugOverlay: u8 {
         const TILEMAP  = 0b0001;
@@ -61,14 +64,6 @@ bitflags::bitflags! {
 
 impl LCD for () {
     fn output_line(&mut self, _ly: u8, _data: &[Color; LCD_WIDTH]) {}
-}
-
-pub struct LCDBuffer(pub [Color; LCD_WIDTH * LCD_HEIGHT]);
-
-impl LCD for LCDBuffer {
-    fn output_line(&mut self, ly: u8, data: &[Color; LCD_WIDTH]) {
-        todo!()
-    }
 }
 
 #[derive(Debug, Default)]
@@ -105,7 +100,7 @@ impl<O: LCD> PPU<O> {
             #[cfg(feature = "cgb")]
             color_palette: Default::default(),
             #[cfg(feature = "lcd_debug_overlay")]
-            lcd_debug_overlay: LCDDebugOverlay::all(),
+            lcd_debug_overlay: LCDDebugOverlay::empty(),
         }
     }
 
@@ -370,10 +365,10 @@ impl<O: LCD> PPU<O> {
         // Priority flag in LCDC register Bit 0 which overrides all other priority bits
         // when cleared.
         #[cfg(feature = "cgb")]
-        if attributes.contains(Attributes::BG_OAM_PRIPRITY) {
+        if attributes.contains(Attributes::BG_OAM_PRIPRITY) && color_id != 0 {
             color_id = 4;
             #[cfg(feature = "lcd_debug_overlay")]
-            if self.lcd_debug_overlay.contains(LCDDebugOverlay::SPRITES) {
+            if self.lcd_debug_overlay.contains(LCDDebugOverlay::TILEMAP) {
                 color = debug::mix(color, lcd::color(0xff, 0x00, 0xff), 0.25);
             }
         }

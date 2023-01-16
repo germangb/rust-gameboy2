@@ -1159,7 +1159,10 @@ impl CPU {
                             }
                             0xc9 => self.registers.pc = self.stack_pop(memory)?,
                             0xca => branch = self.jp_c_n(flag!(self.registers, Z), memory)?,
-                            0xcb => unreachable!(),
+                            0xcb => {
+                                let opcode = self.fetch(memory)?;
+                                return self.exec_opcode_cb(memory, opcode);
+                            }
                             0xcc => branch = self.call_c_n(flag!(self.registers, Z), memory)?,
                             0xcd => self.call_n(memory)?,
                             0xce => {
@@ -1324,17 +1327,16 @@ impl CPU {
         Ok(cycles::unprefixed(opcode, branch))
     }
 
-    fn exec<D: MemoryBus>(&mut self, device: &mut D) -> Result<u64, Error> {
+    fn exec<D: MemoryBus>(&mut self, memory: &mut D) -> Result<u64, Error> {
         // let pc = self.registers.pc;
         // let op = <D as crate::device::Device>::read(device, pc).unwrap();
         // println!("{pc:04X} {op:02X}");
-
-        let opcode = self.fetch(device)?;
+        let opcode = self.fetch(memory)?;
         if opcode == 0xcb {
-            let opcode = self.fetch(device)?;
-            self.exec_opcode_cb(device, opcode)
+            let opcode = self.fetch(memory)?;
+            self.exec_opcode_cb(memory, opcode)
         } else {
-            self.exec_opcode(device, opcode)
+            self.exec_opcode(memory, opcode)
         }
     }
 

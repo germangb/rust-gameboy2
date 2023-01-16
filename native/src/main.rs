@@ -1,4 +1,5 @@
 use core::{
+    cartridge::{Cartridge, MBC1, MBC2, MBC3, MBC5, ROM},
     cpu::Registers,
     debug::Breakpoint,
     device::Device,
@@ -17,7 +18,7 @@ use embedded_graphics::{
 use minifb::{Key, KeyRepeat, Scale, Window, WindowOptions};
 use std::{cell::RefCell, convert::Infallible, rc::Rc};
 
-type GameBoy = core::gb::GameBoy<Box<dyn core::cartridge::Cartridge>, GameBoyLCD>;
+type GameBoy = core::gb::GameBoy<Box<dyn Cartridge>, GameBoyLCD>;
 
 // VRAM window
 const WINDOW_VRAM_TITLE: &str = "VRAM";
@@ -822,6 +823,18 @@ fn handle_joypad_input(window: &Window, gb: &mut GameBoy) {
     handle_key(&window, gb, Key::Down, Button::Down);
 }
 
+fn load_cartridge(file: Box<[u8]>) -> Box<dyn Cartridge> {
+    match file.get(0x147) {
+        Some(0x00 | 0x08 | 0x09) => Box::new(ROM::new(file)) as _,
+        Some(0x01 | 0x02 | 0x03) => Box::new(MBC1::new(file)) as _,
+        Some(0x05 | 0x06) => Box::new(MBC2::new(file)) as _,
+        Some(0x0f | 0x10 | 0x11 | 0x12 | 0x13) => Box::new(MBC3::new(file)) as _,
+        Some(0x19 | 0x1a | 0x1b | 0x1c | 0x1d | 0x1e) => Box::new(MBC5::new(file)) as _,
+        Some(0xfc) => Box::new(camera::PocketCamera::new(CameraSensor::new())) as _,
+        _ => Box::new(()) as _,
+    }
+}
+
 fn load_rom(
     path: Option<&str>,
     display: Rc<RefCell<[Color; WINDOW_LCD_W * WINDOW_LCD_H]>>,
@@ -829,17 +842,7 @@ fn load_rom(
 ) -> GameBoy {
     let cartridge = if let Some(path) = path {
         let file = std::fs::read(path).unwrap().into_boxed_slice();
-        match file[0x147] {
-            0x00 | 0x08 | 0x09 => Box::new(core::cartridge::ROM::new(file)) as _,
-            0x01 | 0x02 | 0x03 => Box::new(core::cartridge::MBC1::new(file)) as _,
-            0x05 | 0x06 => Box::new(core::cartridge::MBC2::new(file)) as _,
-            0x0f | 0x10 | 0x11 | 0x12 | 0x13 => Box::new(core::cartridge::MBC3::new(file)) as _,
-            0x19 | 0x1a | 0x1b | 0x1c | 0x1d | 0x1e => {
-                Box::new(core::cartridge::MBC5::new(file)) as _
-            }
-            0xfc => Box::new(camera::PocketCamera::new(CameraSensor::new())) as _,
-            _ => Box::new(()) as _,
-        }
+        load_cartridge(file)
     } else {
         Box::new(()) as _
     };

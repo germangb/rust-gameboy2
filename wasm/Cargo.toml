@@ -9,11 +9,16 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-core = { path = "../core", features = ["lcd_debug_overlay", "wasm-bindgen", "rgba"] }
-wasm-bindgen = "0.2.69"
+core = { path = "../core", features = ["wasm-bindgen", "rgba", "lcd_debug_overlay"] }
+wasm-bindgen = "0.2.83"
 web-sys = { version = "0.3.46", features = ["CanvasRenderingContext2d", "ImageData"] }
-console_error_panic_hook = "0.1.6"
+console_error_panic_hook = "0.1.7"
 wee_alloc = "0.4.5"
+wasm-log = "0.3.1"
+
+[features]
+default = []
+cgb = ["core/cgb"]
 
 [profile.release]
 opt-level = "s"

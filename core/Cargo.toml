@@ -12,7 +12,6 @@ default = ["mbc1", "mbc2", "mbc3", "mbc5", "boot"]
 boot = [] # boot sequence support (requires boot roms)
 lcd_debug_overlay = ["palette"]
 cgb = [] # color mode
-cgb_washed_out_color = []
 
 # cartridge controllers
 mbc1 = []

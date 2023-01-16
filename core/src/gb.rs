@@ -32,12 +32,6 @@ impl<C: Cartridge, O: LCD> GameBoy<C, O> {
         Self { soc }
     }
 
-    pub fn new_noboot(cartridge: C, output: O) -> Result<Self, Error> {
-        let mut gb = Self::new(cartridge, output);
-        gb.boot()?;
-        Ok(gb)
-    }
-
     /// Update until emulator reaches the next frame.
     pub fn next_frame(&mut self) -> Result<(), Error> {
         let _ = self.soc.step_breakpoint(NextFrame::new())?;
@@ -65,7 +59,8 @@ impl<C: Cartridge, O: LCD> GameBoy<C, O> {
         self.soc.release(button)
     }
 
-    fn boot(&mut self) -> Result<(), Error> {
+    /// Skip boot sequence.
+    pub fn boot(&mut self) -> Result<(), Error> {
         self.boot_memory()?;
         self.boot_cpu();
         Ok(())

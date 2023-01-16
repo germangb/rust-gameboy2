@@ -37,10 +37,10 @@ impl Attributes {
 #[repr(u32)]
 #[derive(Debug, Copy, Clone)]
 pub enum ColorID {
-    C0 = 0x000000,
-    C1 = 0x555555,
-    C2 = 0xaaaaaa,
-    C3 = 0xffffff,
+    C0 = 0xff_000000,
+    C1 = 0xff_555555,
+    C2 = 0xff_aaaaaa,
+    C3 = 0xff_ffffff,
 }
 
 #[derive(Debug)]

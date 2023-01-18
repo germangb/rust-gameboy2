@@ -17,6 +17,7 @@ use embedded_graphics::{
 };
 use minifb::{Key, KeyRepeat, Scale, Window, WindowOptions};
 use std::{cell::RefCell, convert::Infallible, rc::Rc};
+use utils::dasm::Disassembler;
 
 type GameBoy = core::gb::GameBoy<Box<dyn Cartridge>, GameBoyLCD>;
 
@@ -32,7 +33,7 @@ const WINDOW_LCD_H: usize = LCD_HEIGHT + 7;
 
 // CPU window
 const WINDOW_CPU_TITLE: &str = "CPU";
-const WINDOW_CPU_W: usize = 5 * 30;
+const WINDOW_CPU_W: usize = 5 * (30 + 16);
 const WINDOW_CPU_H: usize = 7 * 16;
 
 // MEM window
@@ -577,11 +578,31 @@ fn main() {
             let mut addr_buf = String::new();
             let mut inst_buf = String::new();
             let mut mark_buf = String::new();
+            let mut dasm_buf = String::new();
+            let mut dasm_delay = 0;
             for addr in (pc.max(3) - 3)..(pc + pc_size).min(0x10000) {
                 addr_buf.push_str(&format!("{addr:04X}\n"));
                 mark_buf.push(if addr == pc { '>' } else { '\n' });
                 let inst = gb.soc().read(addr as u16).unwrap();
                 inst_buf.push_str(&format!("{inst:02X}\n"));
+                if addr < pc {
+                    dasm_buf.push_str("...\n");
+                    continue;
+                }
+                if dasm_delay == 0 {
+                    let addr = addr as u16;
+                    let a0 = gb.soc().read(addr).unwrap();
+                    let a1 = gb.soc().read(addr + 1).unwrap();
+                    let a2 = gb.soc().read(addr + 2).unwrap();
+                    let bytes = [a0, a1, a2];
+                    let mut dasm = Disassembler::new(&bytes);
+                    let (opcode, size) = dasm.next().unwrap().unwrap();
+                    dasm_delay = size - 1;
+                    dasm_buf.push_str(&format!("{opcode}\n").to_lowercase());
+                } else {
+                    dasm_delay -= 1;
+                    dasm_buf.push_str("...\n");
+                }
             }
             Text::new(
                 &addr_buf,
@@ -590,17 +611,30 @@ fn main() {
             )
             .draw(&mut cpu_eg)
             .unwrap();
-            Text::new(
-                &mark_buf,
-                Point::new(20, 6),
-                MonoTextStyle::new(&FONT_5X7, Rgb888::RED),
-            )
-            .draw(&mut cpu_eg)
-            .unwrap();
+            let mut marker = true;
+            if pause {
+                marker = frame / 8 % 2 == 0;
+            }
+            if marker {
+                Text::new(
+                    &mark_buf,
+                    Point::new(20, 6),
+                    MonoTextStyle::new(&FONT_5X7, Rgb888::RED),
+                )
+                .draw(&mut cpu_eg)
+                .unwrap();
+            }
             Text::new(
                 &inst_buf,
                 Point::new(25, 6),
                 MonoTextStyle::new(&FONT_5X7, Rgb888::WHITE),
+            )
+            .draw(&mut cpu_eg)
+            .unwrap();
+            Text::new(
+                &dasm_buf,
+                Point::new((5 * 8), 6),
+                MonoTextStyle::new(&FONT_5X7, Rgb888::CSS_DIM_GRAY),
             )
             .draw(&mut cpu_eg)
             .unwrap();
@@ -616,23 +650,24 @@ fn main() {
                 let inst = gb.soc().read(addr as u16).unwrap();
                 inst_buf.push_str(&format!("{inst:02X}\n"));
             }
+            let offset = 16;
             Text::new(
                 &addr_buf,
-                Point::new(5 * 8 + 0, 6),
+                Point::new(5 * 8 + (5 * offset) + 0, 6),
                 MonoTextStyle::new(&FONT_5X7, Rgb888::CSS_DIM_GRAY),
             )
             .draw(&mut cpu_eg)
             .unwrap();
             Text::new(
                 &mark_buf,
-                Point::new(5 * 8 + 20, 6),
+                Point::new(5 * 8 + (5 * offset) + 20, 6),
                 MonoTextStyle::new(&FONT_5X7, Rgb888::GREEN),
             )
             .draw(&mut cpu_eg)
             .unwrap();
             Text::new(
                 &inst_buf,
-                Point::new(5 * 8 + 25, 6),
+                Point::new(5 * (8 + offset) + 25, 6),
                 MonoTextStyle::new(&FONT_5X7, Rgb888::WHITE),
             )
             .draw(&mut cpu_eg)
@@ -654,7 +689,7 @@ fn main() {
             .unwrap();
             Text::new(
                 "A    F\nB    C   \nD    E   \nH    L   \n\nPC\nSP\nHL      (  )",
-                Point::new(5 * 8 * 2, 6),
+                Point::new(5 * 8 * 2 + (5 * offset), 6),
                 MonoTextStyle::new(&FONT_5X7, Rgb888::CSS_DIM_GRAY),
             )
             .draw(&mut cpu_eg)
@@ -665,7 +700,7 @@ fn main() {
             let hl_data = gb.soc().read(hl);
             Text::new(
                 &format!("  {a:02X}   {f:02X}\n  {b:02X}   {c:02X}\n  {d:02X}   {e:02X}\n  {h:02X}   {l:02X}\n\n   {pc:04X}\n   {sp:04X}\n   {hl:04X}"),
-                Point::new(5 * 8 * 2, 6),
+                Point::new(5 * 8 * 2 + (5 * offset), 6),
                 MonoTextStyle::new(&FONT_5X7, Rgb888::WHITE),
             )
             .draw(&mut cpu_eg)
@@ -673,7 +708,7 @@ fn main() {
             if let Ok(data) = hl_data {
                 Text::new(
                     &format!("\n\n\n\n\n\n\n         {data:02X}"),
-                    Point::new(5 * 8 * 2, 6),
+                    Point::new(5 * 8 * 2 + (5 * offset), 6),
                     MonoTextStyle::new(&FONT_5X7, Rgb888::WHITE),
                 )
                 .draw(&mut cpu_eg)
@@ -686,14 +721,14 @@ fn main() {
             #[rustfmt::skip] if f & 0b0001_0000 != 0 { flags.push('C') } else { flags.push(' ') };
             Text::new(
                 &flags,
-                Point::new(5 * 8 * 2, 6),
+                Point::new(5 * 8 * 2 + (5 * offset), 6),
                 MonoTextStyle::new(&FONT_5X7, Rgb888::WHITE),
             )
             .draw(&mut cpu_eg)
             .unwrap();
             Text::new(
                 "Breakpoint\n\nPC\nLY",
-                Point::new(5 * 8, 6 + 7 * 12),
+                Point::new(5 * 8 + (5 * offset), 6 + 7 * 12),
                 MonoTextStyle::new(&FONT_5X7, Rgb888::CSS_DIM_GRAY),
             )
             .draw(&mut cpu_eg)
@@ -701,7 +736,7 @@ fn main() {
             if let Some(breakpoint) = pc_break {
                 Text::new(
                     &format!("\n\n   {breakpoint:04X}"),
-                    Point::new(5 * 8, 6 + 7 * 12),
+                    Point::new(5 * 8 + (5 * offset), 6 + 7 * 12),
                     MonoTextStyle::new(&FONT_5X7, Rgb888::WHITE),
                 )
                 .draw(&mut cpu_eg)
@@ -710,7 +745,7 @@ fn main() {
             if let Some(ly) = ly_break {
                 Text::new(
                     &format!("\n\n\n   {ly:02X}"),
-                    Point::new(5 * 8, 6 + 7 * 12),
+                    Point::new(5 * 8 + (5 * offset), 6 + 7 * 12),
                     MonoTextStyle::new(&FONT_5X7, Rgb888::WHITE),
                 )
                 .draw(&mut cpu_eg)

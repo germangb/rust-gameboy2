@@ -71,7 +71,7 @@ impl CPU {
         self.int_v([0x40, 0x48, 0x50, 0x58, 0x60][tr as usize], memory)?;
         self.ime = false;
         <D as Device>::write(memory, 0xff0f, if_ & !(1 << tr)).unwrap();
-        Ok(cycles::unprefixed(0, false)) // NOP
+        Ok(16)
     }
 
     fn int_v<D: MemoryBus>(&mut self, v: u16, memory: &mut D) -> Result<(), Error> {

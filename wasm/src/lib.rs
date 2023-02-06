@@ -1,7 +1,9 @@
 pub use core::joypad::Button;
 use core::ppu::{Color, LCD, LCD_HEIGHT, LCD_WIDTH};
 use wasm_bindgen::{prelude::*, Clamped};
-use web_sys::{CanvasRenderingContext2d, ImageData};
+use web_sys::{CanvasRenderingContext2d, HtmlVideoElement, ImageData};
+
+pub mod sensor;
 
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
@@ -33,6 +35,42 @@ impl LCD for LCDBuffer {
     }
 }
 
+struct CameraSensor {
+    fosdem: image::GrayImage,
+    time: u32,
+}
+
+impl CameraSensor {
+    #[rustfmt::skip]
+    fn new() -> Self {
+        Self {
+            fosdem: image::load_from_memory(include_bytes!("../../native/src/fosdem.png")).unwrap().to_luma8(),
+            time: 0,
+        }
+    }
+
+    fn fosdem(&self, buf: &mut [[u8; 128]; 112]) {
+        for i in 0..112 {
+            for j in 0..128 {
+                buf[i as usize][j as usize] = self
+                    .fosdem
+                    .get_pixel(
+                        ((j * 3) / 2 + self.time) % 128,
+                        ((i * 3) / 2 + self.time) % 112,
+                    )
+                    .0[0];
+            }
+        }
+    }
+}
+
+impl camera::Sensor for CameraSensor {
+    fn capture(&mut self, buf: &mut [[u8; 128]; 112]) {
+        self.time += 1;
+        self.fosdem(buf)
+    }
+}
+
 fn load_cartridge(file: Box<[u8]>) -> Box<dyn core::cartridge::Cartridge> {
     match file.get(0x147) {
         Some(0x00 | 0x08 | 0x09) => Box::new(core::cartridge::ROM::new(file)) as _,
@@ -42,6 +80,7 @@ fn load_cartridge(file: Box<[u8]>) -> Box<dyn core::cartridge::Cartridge> {
         Some(0x19 | 0x1a | 0x1b | 0x1c | 0x1d | 0x1e) => {
             Box::new(core::cartridge::MBC5::new(file)) as _
         }
+        Some(0xfc) => Box::new(camera::PocketCamera::new(file, CameraSensor::new())),
         _ => Box::new(()) as _,
     }
 }
@@ -71,6 +110,22 @@ impl GameBoy {
     pub fn load_rom(&mut self, data: &[u8]) {
         let lcd_buffer = LCDBuffer([[0x00; 4]; LCD_WIDTH * LCD_HEIGHT]);
         let cartridge = load_cartridge(data.to_vec().into_boxed_slice());
+        let inner = core::gb::GameBoy::new(cartridge, lcd_buffer);
+        let _ = std::mem::replace(&mut self.inner, inner);
+    }
+
+    pub fn load_rom_pocket_camera(
+        &mut self,
+        data: &[u8],
+        ctx: CanvasRenderingContext2d,
+        video: HtmlVideoElement,
+    ) {
+        let lcd_buffer = LCDBuffer([[0x00; 4]; LCD_WIDTH * LCD_HEIGHT]);
+        let sensor = sensor::CameraSensor::with_video(ctx, video);
+        let cartridge = Box::new(camera::PocketCamera::new(
+            data.to_vec().into_boxed_slice(),
+            sensor,
+        )) as _;
         let inner = core::gb::GameBoy::new(cartridge, lcd_buffer);
         let _ = std::mem::replace(&mut self.inner, inner);
     }

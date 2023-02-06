@@ -25,10 +25,10 @@ const OPCODE_LEN: &[usize; 256] = &[
 /// Immediate address for LD Opcodes.
 #[derive(Display, Debug, Eq, PartialEq)]
 pub enum Address {
-    #[display("({0:04X})")]
+    #[display("({0:04X}h)")]
     U16(u16),
     /// 0xff00 + u8
-    #[display("(FF00+{0:02X})")]
+    #[display("(FF{0:02X}h)")]
     U8(u8),
     #[display("(HL)")]
     HLPtr,
@@ -36,11 +36,11 @@ pub enum Address {
 
 #[derive(Display, Debug, Eq, PartialEq)]
 pub enum Data {
-    #[display("{0:04X}")]
+    #[display("{0:04X}h")]
     U16(u16),
-    #[display("{0:02X}")]
+    #[display("{0:02X}h")]
     U8(u8),
-    #[display("{0:02X}")]
+    #[display("{0:02X}h")]
     I8(u8),
 }
 
@@ -165,7 +165,7 @@ pub enum LDSrc {
     HLPtrDec,
     HL,
     SP,
-    #[display("SP+{0:02X}")]
+    #[display("SP+{0:02X}h")]
     SPOffset(u8),
     #[display("{0}")]
     Data(Data),
@@ -221,71 +221,84 @@ pub enum Opcode {
     #[display("<unknown>")]
     Unknown,
 
+    #[display("nop")]
     NOP,
-    #[display("STOP 0")]
+    #[display("stop 0")]
     STOP,
-    #[display("HALT")]
+    #[display("halt")]
     HALT,
+    #[display("di")]
     DI,
+    #[display("ei")]
     EI,
-    #[display("CB {0}")]
+    #[display("cb {0}")]
     PrefixOpcode(PrefixOpcode),
 
-    #[display("LD {0},{1}")]
+    #[display("ld {0},{1}")]
     LD(LDDst, LDSrc),
 
+    #[display("daa")]
     DAA,
+    #[display("scf")]
     SCF,
+    #[display("cpl")]
     CPL,
+    #[display("ccf")]
     CCF,
-    #[display("INC {0}")]
+    #[display("inc {0}")]
     INC(ALUDst),
-    #[display("DEC {0}")]
+    #[display("dec {0}")]
     DEC(ALUDst),
-    #[display("ADD {0},{1}")]
+    #[display("add {0},{1}")]
     ADD(ALUDst, ALUSrc),
-    #[display("ADC A,{0}")]
+    #[display("adc A,{0}")]
     ADC(ALUSrc),
-    #[display("DUB {0}")]
+    #[display("sub {0}")]
     SUB(ALUSrc),
-    #[display("DBC A,{0}")]
+    #[display("sbc A,{0}")]
     SBC(ALUSrc),
-    #[display("AND {0}")]
+    #[display("and {0}")]
     AND(ALUSrc),
-    #[display("XOR {0}")]
+    #[display("xor {0}")]
     XOR(ALUSrc),
-    #[display("OR {0}")]
+    #[display("or {0}")]
     OR(ALUSrc),
-    #[display("CP {0}")]
+    #[display("cp {0}")]
     CP(ALUSrc),
 
+    #[display("rlca")]
     RLCA,
+    #[display("rrca")]
     RRCA,
+    #[display("rla")]
     RLA,
+    #[display("rra")]
     RRA,
 
-    #[display("PUSH {0}")]
+    #[display("push {0}")]
     PUSH(StackRegister),
-    #[display("POP {0}")]
+    #[display("pop {0}")]
     POP(StackRegister),
 
-    #[display("JP {0}")]
+    #[display("jp {0}")]
     JP(Address),
-    #[display("JP {0},{1}")]
+    #[display("jp {0},{1}")]
     JPFlags(Flags, Address),
-    #[display("JR {0:02X}")]
+    #[display("jr {0:02X}h")]
     JR(u8),
-    #[display("JR {0},{1:02X}")]
+    #[display("jr {0},{1:02X}h")]
     JRFlags(Flags, u8),
-    #[display("CALL {0}")]
+    #[display("call {0}")]
     CALL(Address),
-    #[display("CALL {0},{1}")]
+    #[display("call {0},{1}")]
     CALLFlags(Flags, Address),
+    #[display("ret")]
     RET,
-    #[display("RET {0}")]
+    #[display("ret {0}")]
     RETFlags(Flags),
+    #[display("reti")]
     RETI,
-    #[display("RST {0}")]
+    #[display("rst {0}")]
     RST(RSTAddress),
 }
 
@@ -306,27 +319,27 @@ pub enum PrefixRegister {
 /// 0xCB prefixed Opcodes.
 #[derive(Display, Debug, Eq, PartialEq)]
 pub enum PrefixOpcode {
-    #[display("RLC {0}")]
+    #[display("rlc {0}")]
     RLC(PrefixRegister),
-    #[display("RRC {0}")]
+    #[display("rrc {0}")]
     RRC(PrefixRegister),
-    #[display("RL {0}")]
+    #[display("rl {0}")]
     RL(PrefixRegister),
-    #[display("RR {0}")]
+    #[display("rr {0}")]
     RR(PrefixRegister),
-    #[display("SLA {0}")]
+    #[display("sla {0}")]
     SLA(PrefixRegister),
-    #[display("SRA {0}")]
+    #[display("sra {0}")]
     SRA(PrefixRegister),
-    #[display("SRL {0}")]
+    #[display("srl {0}")]
     SRL(PrefixRegister),
-    #[display("SWAP {0}")]
+    #[display("swap {0}")]
     SWAP(PrefixRegister),
-    #[display("BIT {0},{1}")]
+    #[display("bit {0},{1}")]
     BIT(Bit, PrefixRegister),
-    #[display("RES {0},{1}")]
+    #[display("res {0},{1}")]
     RES(Bit, PrefixRegister),
-    #[display("SET {0},{1}")]
+    #[display("set {0},{1}")]
     SET(Bit, PrefixRegister),
 }
 

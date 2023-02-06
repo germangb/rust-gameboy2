@@ -16,8 +16,11 @@ minifb = "0.23.0"
 embedded-graphics = "0.7.1"
 dialog = "0.3.0"
 log = "0.4.17"
+cfg-if = "1.0.0"
 
 [features]
-default = []
+default = ["cpu", "vram"]
 cgb = ["core/cgb"]
 mem = []
+cpu = []
+vram = []

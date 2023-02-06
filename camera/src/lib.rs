@@ -7,8 +7,6 @@ use core::{
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-static ROM: &[u8] = include_bytes!("camera.gb");
-
 pub const WIDTH: usize = 128;
 pub const HEIGHT: usize = 112;
 
@@ -72,6 +70,7 @@ pub struct PocketCamera<S: Sensor> {
     mode: Mode,
     sensor: S,
     buffer: Buffer,
+    rom: Box<[u8]>,
     rom_bank: usize,
     ram: Box<[u8]>,
     ram_bank: usize,
@@ -80,7 +79,7 @@ pub struct PocketCamera<S: Sensor> {
 }
 
 impl<S: Sensor> PocketCamera<S> {
-    pub fn new(sensor: S) -> Self {
+    pub fn new(rom: Box<[u8]>, sensor: S) -> Self {
         let mode = Mode::Ram;
         let buffer = [[0; WIDTH]; HEIGHT];
         let rom_bank = 0;
@@ -100,6 +99,7 @@ impl<S: Sensor> PocketCamera<S> {
             mode,
             sensor,
             buffer,
+            rom,
             rom_bank,
             ram,
             ram_bank,
@@ -171,8 +171,8 @@ impl<S: Sensor> Device for PocketCamera<S> {
     fn read(&self, address: u16) -> Result<u8, ReadError> {
         dev_read! {
             address {
-                0x0000..=0x3fff => Ok(ROM[address as usize]),
-                0x4000..=0x7fff => Ok(ROM[self.rom_bank_address(address)]),
+                0x0000..=0x3fff => Ok(self.rom[address as usize]),
+                0x4000..=0x7fff => Ok(self.rom[self.rom_bank_address(address)]),
                 0xa000..=0xbfff => match self.mode {
                     // Reading from RAM or registers is always enabled. Writing to registers is always
                     // enabled. Disabled on reset.

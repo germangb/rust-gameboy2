@@ -21,20 +21,21 @@ use utils::dasm::Disassembler;
 
 type GameBoy = core::gb::GameBoy<Box<dyn Cartridge>, GameBoyLCD>;
 
-// VRAM window
-const WINDOW_VRAM_TITLE: &str = "VRAM";
-const WINDOW_VRAM_W: usize = TileDataCache::DOTS_WIDTH;
-const WINDOW_VRAM_H: usize = TileDataCache::DOTS_HEIGHT;
-
 // LCD window
 const WINDOW_LCD_TITLE: &str = "LCD";
 const WINDOW_LCD_W: usize = LCD_WIDTH + 16;
 const WINDOW_LCD_H: usize = LCD_HEIGHT + 7;
 
+// VRAM window
+const WINDOW_VRAM_TITLE: &str = "VRAM";
+const WINDOW_VRAM_W: usize = TileDataCache::DOTS_WIDTH;
+const WINDOW_VRAM_H: usize = TileDataCache::DOTS_HEIGHT;
+
 // CPU window
 const WINDOW_CPU_TITLE: &str = "CPU";
-const WINDOW_CPU_W: usize = 5 * (30 + 16);
-const WINDOW_CPU_H: usize = 7 * 16;
+const WINDOW_CPU_W: usize = 5 * (30 + 20);
+const WINDOW_CPU_ROWS: usize = 16;
+const WINDOW_CPU_H: usize = 7 * WINDOW_CPU_ROWS;
 
 // MEM window
 const WINDOW_MEM_TITLE: &str = "MEM";
@@ -250,6 +251,7 @@ fn draw_color_palettes(gb: &GameBoy, display: &mut LCDDrawTarget) {
 
 struct Windows {
     pub window_lcd: Window,
+    #[cfg(feature = "cpu")]
     pub window_cpu: Window,
     #[cfg(feature = "mem")]
     pub window_mem: Window,
@@ -281,8 +283,10 @@ impl Windows {
         window_lcd.limit_update_rate(Some(std::time::Duration::from_micros(16750)));
         let mut opts_cpu = WindowOptions::default();
         opts_cpu.scale = Scale::X2;
+        #[cfg(feature = "cpu")]
         let mut window_cpu =
             Window::new(WINDOW_CPU_TITLE, WINDOW_CPU_W, WINDOW_CPU_H, opts_cpu).unwrap();
+        #[cfg(feature = "cpu")]
         window_cpu.limit_update_rate(Some(std::time::Duration::from_micros(16750)));
         #[cfg(feature = "mem")]
         let mut opts_mem = WindowOptions::default();
@@ -297,6 +301,7 @@ impl Windows {
         window_mem.limit_update_rate(Some(std::time::Duration::from_micros(16750)));
         Self {
             window_lcd,
+            #[cfg(feature = "cpu")]
             window_cpu,
             #[cfg(feature = "mem")]
             window_mem,
@@ -319,8 +324,12 @@ impl Windows {
         let mem = false;
         #[cfg(feature = "mem")]
         let mem = self.window_mem.is_key_pressed(key, repeat);
+        #[cfg(not(feature = "cpu"))]
+        let cpu = false;
+        #[cfg(feature = "cpu")]
+        let cpu = self.window_cpu.is_key_pressed(key, repeat);
         self.window_lcd.is_key_pressed(key, repeat)
-            || self.window_cpu.is_key_pressed(key, repeat)
+            || cpu
             || vram
             || mem
     }
@@ -424,6 +433,7 @@ fn main() {
         }
 
         // change PC
+        #[cfg(feature = "cpu")]
         if windows.window_cpu.is_key_down(Key::RightShift)
             && windows.window_cpu.is_key_pressed(Key::P, KeyRepeat::No)
         {
@@ -441,12 +451,14 @@ fn main() {
         }
 
         // set breakpoint
+        #[cfg(feature = "cpu")]
         if windows.window_cpu.is_key_pressed(Key::B, KeyRepeat::No) {
             if let Ok(Some(address)) = dialog::Input::new("PC").title("breakpoint").show() {
                 pc_break = u16::from_str_radix(&address, 16).ok();
             }
         }
 
+        #[cfg(feature = "cpu")]
         if windows.window_cpu.is_key_pressed(Key::L, KeyRepeat::No) {
             if let Ok(Some(val)) = dialog::Input::new("ly").title("breakpoint").show() {
                 ly_break = val.parse::<u8>().ok();
@@ -489,6 +501,7 @@ fn main() {
                 }
             }
         } else {
+            #[cfg(feature = "cpu")]
             if windows.window_cpu.is_key_pressed(Key::S, KeyRepeat::Yes) {
                 if let Err(err) = gb.soc_mut().step() {
                     pause = true;
@@ -570,38 +583,32 @@ fn main() {
                 .unwrap();
         }
         // draw CPU
+        #[cfg(feature = "cpu")]
         {
             static BLACK: [u32; WINDOW_CPU_W * WINDOW_CPU_H] = [0; WINDOW_CPU_W * WINDOW_CPU_H];
             cpu_eg.buffer[..].copy_from_slice(&BLACK[..]);
-            let pc = gb.soc().cpu().registers().pc as usize;
-            let pc_size = 16 - 3;
+
             let mut addr_buf = String::new();
             let mut inst_buf = String::new();
             let mut mark_buf = String::new();
             let mut dasm_buf = String::new();
-            let mut dasm_delay = 0;
-            for addr in (pc.max(3) - 3)..(pc + pc_size).min(0x10000) {
-                addr_buf.push_str(&format!("{addr:04X}\n"));
-                mark_buf.push(if addr == pc { '>' } else { '\n' });
-                let inst = gb.soc().read(addr as u16).unwrap();
-                inst_buf.push_str(&format!("{inst:02X}\n"));
-                if addr < pc {
-                    dasm_buf.push_str("...\n");
-                    continue;
-                }
-                if dasm_delay == 0 {
-                    let addr = addr as u16;
-                    let a0 = gb.soc().read(addr).unwrap();
-                    let a1 = gb.soc().read(addr + 1).unwrap();
-                    let a2 = gb.soc().read(addr + 2).unwrap();
-                    let bytes = [a0, a1, a2];
-                    let mut dasm = Disassembler::new(&bytes);
-                    let (opcode, size) = dasm.next().unwrap().unwrap();
-                    dasm_delay = size - 1;
-                    dasm_buf.push_str(&format!("{opcode}\n").to_lowercase());
-                } else {
-                    dasm_delay -= 1;
-                    dasm_buf.push_str("...\n");
+
+            let mut buf = Vec::with_capacity(3);
+            let mut lines = 0;
+            let mut pc = gb.soc().cpu().registers().pc;
+            while lines < 24 {
+                buf.push(gb.soc().read(pc).unwrap());
+                pc += 1;
+                let mut dasm = Disassembler::new(&buf);
+                if let Some(Ok((inst, len))) = dasm.next() {
+                    addr_buf.push_str(&format!("{:04X}\n", pc - (len as u16)));
+                    for op in buf.iter().take(len) {
+                        inst_buf.push_str(&format!("{op:02X} "));
+                    }
+                    inst_buf.push('\n');
+                    dasm_buf.push_str(&format!("{inst}\n"));
+                    lines += 1;
+                    buf.clear();
                 }
             }
             Text::new(
@@ -617,7 +624,7 @@ fn main() {
             }
             if marker {
                 Text::new(
-                    &mark_buf,
+                    ">",
                     Point::new(20, 6),
                     MonoTextStyle::new(&FONT_5X7, Rgb888::RED),
                 )
@@ -633,24 +640,23 @@ fn main() {
             .unwrap();
             Text::new(
                 &dasm_buf,
-                Point::new((5 * 8), 6),
+                Point::new((5 * 14), 6),
                 MonoTextStyle::new(&FONT_5X7, Rgb888::CSS_DIM_GRAY),
             )
             .draw(&mut cpu_eg)
             .unwrap();
             let sp = gb.soc().cpu().registers().sp as usize;
-            let sp_size = 7;
-            let sp_base = sp.max(sp_size) - sp_size;
+            let sp_size = WINDOW_CPU_ROWS - 6;
             addr_buf.clear();
             mark_buf.clear();
             inst_buf.clear();
-            for addr in (sp.max(sp_size) - sp_size)..=(sp + 3).min(0xffff) {
+            for addr in (sp.max(sp_size) - sp_size)..=sp {
                 addr_buf.push_str(&format!("{addr:04X}\n"));
                 mark_buf.push(if addr == sp { '>' } else { '\n' });
                 let inst = gb.soc().read(addr as u16).unwrap();
                 inst_buf.push_str(&format!("{inst:02X}\n"));
             }
-            let offset = 16;
+            let offset = 20;
             Text::new(
                 &addr_buf,
                 Point::new(5 * 8 + (5 * offset) + 0, 6),
@@ -726,9 +732,10 @@ fn main() {
             )
             .draw(&mut cpu_eg)
             .unwrap();
+            let col_offset = 6 + 7 * (WINDOW_CPU_ROWS - 4);
             Text::new(
                 "Breakpoint\n\nPC\nLY",
-                Point::new(5 * 8 + (5 * offset), 6 + 7 * 12),
+                Point::new(5 * 8 + (5 * offset), col_offset as _),
                 MonoTextStyle::new(&FONT_5X7, Rgb888::CSS_DIM_GRAY),
             )
             .draw(&mut cpu_eg)
@@ -736,7 +743,7 @@ fn main() {
             if let Some(breakpoint) = pc_break {
                 Text::new(
                     &format!("\n\n   {breakpoint:04X}"),
-                    Point::new(5 * 8 + (5 * offset), 6 + 7 * 12),
+                    Point::new(5 * 8 + (5 * offset), col_offset as _),
                     MonoTextStyle::new(&FONT_5X7, Rgb888::WHITE),
                 )
                 .draw(&mut cpu_eg)
@@ -745,7 +752,7 @@ fn main() {
             if let Some(ly) = ly_break {
                 Text::new(
                     &format!("\n\n\n   {ly:02X}"),
-                    Point::new(5 * 8 + (5 * offset), 6 + 7 * 12),
+                    Point::new(5 * 8 + (5 * offset), col_offset as _),
                     MonoTextStyle::new(&FONT_5X7, Rgb888::WHITE),
                 )
                 .draw(&mut cpu_eg)
@@ -865,7 +872,7 @@ fn load_cartridge(file: Box<[u8]>) -> Box<dyn Cartridge> {
         Some(0x05 | 0x06) => Box::new(MBC2::new(file)) as _,
         Some(0x0f | 0x10 | 0x11 | 0x12 | 0x13) => Box::new(MBC3::new(file)) as _,
         Some(0x19 | 0x1a | 0x1b | 0x1c | 0x1d | 0x1e) => Box::new(MBC5::new(file)) as _,
-        Some(0xfc) => Box::new(camera::PocketCamera::new(CameraSensor::new())) as _,
+        Some(0xfc) => Box::new(camera::PocketCamera::new(file, CameraSensor::new())) as _,
         _ => Box::new(()) as _,
     }
 }

@@ -20,6 +20,9 @@
         height: 288px;
         image-rendering: pixelated;
       }
+      .vram {
+        image-rendering: pixelated;
+      }
       .pal {
         position: absolute;
       }
@@ -36,7 +39,9 @@
   <body>
     <noscript>This page contains webassembly and javascript content, please enable javascript in your browser.</noscript>
     <script src="./bootstrap.js"></script>
-    <img src="ferris.png" width="200" class="ferris">
+    <canvas width="128" height="112" style="display: none" id="sensor_canvas"></canvas>
+    <video autoplay="true" id="sensor_video" width="128" height="112" style="display: none"></video>
+    <img src="ferris.png" width="256" class="ferris">
     <div style="margin-bottom: 12px">
       <div class="btn-group" style="margin-bottom: 12px">
         <button type="button" class="btn btn-success" id="load">
@@ -68,8 +73,8 @@
     <div style="font-size: 0">
       <canvas width="160" height="144" class="shadow canvas lcd" id="lcd"></canvas>
       <canvas width="32" height="128" class="shadow canvas pal" id="pal"></canvas>
-      <canvas width="192" height="128" class="shadow canvas" id="vram0"></canvas>
-      <canvas width="192" height="128" class="shadow canvas" id="vram1"></canvas>
+      <canvas width="192" height="128" class="shadow canvas vram" id="vram0"></canvas>
+      <canvas width="192" height="128" class="shadow canvas vram" id="vram1"></canvas>
     </div>
     <div style="margin-top: 12px">
       <label>

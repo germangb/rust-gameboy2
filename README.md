@@ -16,7 +16,7 @@ Attempt to rewrite the old [`germangb/rust-gameboy`] emulator project.
 ![](assets/zelda_cgb.png)
 ![](assets/mario_deluxe.png)
 
-## Integration tests
+## Automated tests
 
 ```bash
 cargo test --test cpu_instrs
@@ -28,19 +28,60 @@ cargo test --test mem_timing
 ![](assets/instr_timing.png)
 ![](assets/mem_timing.png)
 
-## WASM
+## Build
+
+### Boot ROMs
+
+You must provide your own boot ROMs as they are not included in the repo.
+
+- `/core/boot/boot.gb`
+- `/core/boot/boot.gbc` (if building with `--features cgb`)
+
+You may or may not find them here https://gbdev.gg8.se/files/roms/bootroms/
+
+### Native build
 
 ```bash
-cd wasm/           # wasm module project
-wasm-pack build    # build wasm module
-cd www/            # web server directory 
-npm run start      # start server on port 8080
+cargo run -p native --release [--features cgb] -- [ROM FILE]
+```
+
+Focus on the LCD window for game controls:
+
+- `Left`, `Right`, `Up`, `Down` maps to DPAD buttons.
+- `Z` maps to A button
+- `X` maps to B button
+- `Enter` maps to Start button
+- `RightShift` maps to Select button
+
+Other keyboard controls (for primitive debugging):
+
+- `C` Change the ROM (Will open filesystem file selector).
+- `P` Pause/Resume emulation
+- `R` Reset emulation
+- `S` Step instruction (CPU Window)
+- `B` Set Instruction breakpoint (CPU Window)
+- `L` Set LCD line breakpoint (CPU Window)
+- `RightShift + P` Override PC register (CPU Window)
+
+(The Memory window `--features mem` is not yet finished)
+
+- `R` Read byte from memory (MEM Window)
+- `RightShift + P` Write byte to memory (MEM Window)
+
+### WASM
+
+```bash
+cd wasm/
+wasm-pack build [--features cgb] # build NPM package
+cd www/
+npm run start # start HTTP server
 ```
 
 ![](assets/wasm.png)
 
 ## References
 
+- https://fosdem.org/2023/schedule/event/gb_arm/
 - http://problemkaputt.de/pandocs.htm
 - https://gbdev.gg8.se/wiki/
 - https://github.com/AntonioND/giibiiadvance/blob/master/docs/TCAGBD.pdf

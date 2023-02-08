@@ -328,10 +328,7 @@ impl Windows {
         let cpu = false;
         #[cfg(feature = "cpu")]
         let cpu = self.window_cpu.is_key_pressed(key, repeat);
-        self.window_lcd.is_key_pressed(key, repeat)
-            || cpu
-            || vram
-            || mem
+        self.window_lcd.is_key_pressed(key, repeat) || cpu || vram || mem
     }
 
     fn is_open(&self) -> bool {
